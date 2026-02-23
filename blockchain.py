@@ -9,13 +9,10 @@ class KaalChain:
     def __init__(self):
         self.chain = []
         self.pending_transactions = []
-        self.difficulty = 2 # Render par mining fast karne ke liye
-        
-        # MONGO_URI environment variable se aayega
+        self.difficulty = 2 # Render CPU ke liye 2 best hai
         mongo_uri = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
         
         try:
-            # 5 second ka timeout taaki Render atke nahi
             self.mongo_client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
             self.db = self.mongo_client.kaal_db
             self.collection = self.db.ledger
@@ -24,14 +21,6 @@ class KaalChain:
             print(f"DB Error: {e}")
             self.create_genesis_block()
 
-    def verify_transaction_signature(self, sender_pub_hex, signature_hex, message):
-        if sender_pub_hex == "KAAL_NETWORK": return True
-        try:
-            pub_hex = sender_pub_hex.replace("KAAL", "")
-            vk = ecdsa.VerifyingKey.from_string(bytes.fromhex(pub_hex), curve=ecdsa.SECP256k1)
-            return vk.verify(bytes.fromhex(signature_hex), message.encode())
-        except: return False
-
     def get_balance(self, address):
         bal = 0
         for block in self.chain:
@@ -39,6 +28,14 @@ class KaalChain:
                 if tx['sender'] == address: bal -= float(tx['amount'])
                 if tx['receiver'] == address: bal += float(tx['amount'])
         return round(bal, 2)
+
+    def verify_transaction_signature(self, sender_pub_hex, signature_hex, message):
+        if sender_pub_hex == "KAAL_NETWORK": return True
+        try:
+            pub_hex = sender_pub_hex.replace("KAAL", "")
+            vk = ecdsa.VerifyingKey.from_string(bytes.fromhex(pub_hex), curve=ecdsa.SECP256k1)
+            return vk.verify(bytes.fromhex(signature_hex), message.encode())
+        except: return False
 
     def add_transaction(self, sender, receiver, amount, signature=None):
         if sender != "KAAL_NETWORK":
@@ -88,6 +85,5 @@ class KaalChain:
 
     def mine_block(self, miner_address, proof):
         last_hash = self.chain[-1]['hash'] if self.chain else '0'
-        # Miner reward
         self.add_transaction("KAAL_NETWORK", miner_address, 51)
         return self.create_block(proof, last_hash)
