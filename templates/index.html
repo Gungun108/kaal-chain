@@ -9,71 +9,46 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/elliptic/6.5.4/elliptic.min.js"></script>
     <style>
         :root { --kaal: #ff4500; --bg: #f8f9fa; --card: #ffffff; }
-        body { background: var(--bg); font-family: 'Segoe UI', sans-serif; margin: 0; padding: 10px; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        body { background: var(--bg); font-family: 'Segoe UI', sans-serif; margin: 0; padding: 10px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         
-        /* Fixed Header Section */
-        .wallet-header { flex-shrink: 0; }
         .card { background: var(--card); border-radius: 20px; padding: 15px; margin-bottom: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #ddd; text-align: center; }
-        .bal-text { font-size: 40px; font-weight: 900; color: var(--kaal); margin: 0; }
-        .addr-box { font-size: 9px; color: #008000; background: #eaffea; padding: 8px; border-radius: 8px; border: 1px dashed #4caf50; word-break: break-all; margin: 8px 0; cursor: pointer; }
+        .bal-text { font-size: 38px; font-weight: 900; color: var(--kaal); margin: 0; }
+        .addr-box { font-size: 10px; color: #008000; background: #eaffea; padding: 8px; border-radius: 8px; border: 1px dashed #4caf50; word-break: break-all; margin: 10px 0; cursor: pointer; }
         
-        /* Action Buttons */
-        .btn-row { display: flex; gap: 8px; margin-top: 10px; }
-        .btn { background: var(--kaal); color: white; border: none; padding: 12px; border-radius: 10px; font-weight: bold; width: 100%; cursor: pointer; font-size: 13px; }
+        .btn-row { display: flex; gap: 8px; }
+        .btn { background: var(--kaal); color: white; border: none; padding: 12px; border-radius: 10px; font-weight: bold; width: 100%; cursor: pointer; }
         .btn-outline { background: white; color: #333; border: 1px solid #ccc; }
 
-        /* Scrollable Activity Section */
-        .activity-section { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--card); border-radius: 20px; border: 1px solid #ddd; padding: 15px; }
-        .history-container { flex-grow: 1; overflow-y: auto; margin-top: 10px; padding-right: 5px; }
-        .history-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #fdfdfd; border-radius: 10px; margin-bottom: 8px; border-left: 4px solid var(--kaal); font-size: 12px; border-bottom: 1px solid #eee; }
+        /* Scrollable Section */
+        .activity-section { flex-grow: 1; display: flex; flex-direction: column; background: var(--card); border-radius: 20px; border: 1px solid #ddd; padding: 15px; overflow: hidden; }
+        .history-container { flex-grow: 1; overflow-y: auto; padding-right: 5px; }
+        .history-item { display: flex; justify-content: space-between; padding: 12px; background: #fff; border-radius: 10px; margin-bottom: 8px; border-left: 5px solid var(--kaal); font-size: 13px; text-align: left; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
 
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 999; }
     </style>
 </head>
 <body>
 
-    <div class="wallet-header">
-        <div class="card">
-            <h3 style="color:var(--kaal); margin:0 0 5px 0;">🔱 KAAL WALLET</h3>
-            <div id="bal" class="bal-text">0.00</div>
-            <div style="font-size:10px; color:gray; font-weight:bold;">KAAL COINS</div>
-            <div class="addr-box" id="addrDisp" onclick="copyAddr()">Loading Address...</div>
-            
-            <button class="btn" id="mineBtn" onclick="toggleMining()">⚡ START MINING</button>
-            <div class="btn-row">
-                <button class="btn btn-outline" onclick="openModal('sendModal')">📤 SEND</button>
-                <button class="btn btn-outline" onclick="openModal('recModal')">📥 RECEIVE</button>
-            </div>
+    <div class="card">
+        <h3 style="color:var(--kaal); margin:0;">🔱 KAAL WALLET</h3>
+        <div id="bal" class="bal-text">0.00</div>
+        <div style="font-size:10px; color:gray; font-weight:bold;">KAAL COINS</div>
+        <div class="addr-box" id="addrDisp" onclick="copyAddr()">Loading Address...</div>
+        
+        <button class="btn" id="mineBtn" onclick="toggleMining()">⚡ START MINING</button>
+        <div class="btn-row" style="margin-top:10px;">
+            <button class="btn btn-outline" onclick="openModal('sendModal')">📤 SEND</button>
+            <button class="btn btn-outline" onclick="openModal('recModal')">📥 RECEIVE</button>
         </div>
     </div>
 
     <div class="activity-section">
-        <h4 style="margin:0; padding-bottom:10px; border-bottom:1px solid #eee;">📜 Recent Activity</h4>
-        <div id="historyList" class="history-container">Syncing...</div>
-    </div>
-
-    <div id="sendModal" class="modal">
-        <div class="card" style="width:85%; margin:30px auto;">
-            <h3>Send Funds</h3>
-            <div id="reader"></div>
-            <button class="btn btn-outline" onclick="startCamera()">📸 Open Scanner</button>
-            <input type="text" id="to" placeholder="Address" style="width:90%; padding:10px; margin-top:10px;">
-            <input type="number" id="amt" placeholder="Amount" style="width:90%; padding:10px; margin-top:10px;">
-            <button class="btn" onclick="sendTx()">CONFIRM</button>
-            <button class="btn btn-outline" onclick="closeModal('sendModal')">CLOSE</button>
-        </div>
-    </div>
-
-    <div id="recModal" class="modal">
-        <div class="card" style="width:85%; margin:30px auto;">
-            <h3>Your QR Code</h3>
-            <div id="qrcode" style="padding:10px; background:white; display:inline-block;"></div>
-            <p id="recAddrDisplay" style="font-size:9px; word-break:break-all;"></p>
-            <button class="btn btn-outline" onclick="closeModal('recModal')">CLOSE</button>
-        </div>
+        <h4 style="margin:0 0 10px 0; border-bottom:1px solid #eee; padding-bottom:10px;">📜 Activity</h4>
+        <div id="historyList" class="history-container">Syncing ledger...</div>
     </div>
 
     <script>
+        // Use the previous JS logic but ensure 'sync' and 'mineLoop' use fetch correctly
         const ec = new (elliptic.ec)('secp256k1');
         let mining = false, pub, priv, html5QrCode;
 
@@ -87,9 +62,7 @@
                 localStorage.setItem('kaal_pub', pub); localStorage.setItem('kaal_priv', priv);
             }
             document.getElementById('addrDisp').innerText = pub;
-            document.getElementById('recAddrDisplay').innerText = pub;
-            new QRCode(document.getElementById("qrcode"), { text: pub, width: 140, height: 140 });
-            sync(); setInterval(sync, 8000);
+            sync(); setInterval(sync, 10000);
         }
 
         async function sync() {
@@ -118,27 +91,26 @@
             mining = !mining;
             const btn = document.getElementById('mineBtn');
             btn.innerText = mining ? "🛑 STOP" : "⚡ START MINING";
-            if (mining) mineLoop();
+            if(mining) mineLoop();
         }
 
         async function mineLoop() {
             let n = Math.floor(Math.random() * 100000);
-            while (mining) {
+            while(mining) {
                 n++;
-                if (n % 400 === 0) await new Promise(r => setTimeout(r, 60));
+                if(n % 400 === 0) await new Promise(r => setTimeout(r, 60));
                 const msg = (window.last_proof || 100) + "" + n;
                 const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg));
                 const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-                if (hex.startsWith('0'.repeat(window.diff || 2))) {
+                if(hex.startsWith('0'.repeat(window.diff || 2))) {
                     await fetch('/mine', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({address: pub, proof: n}) });
                     sync(); mining = false; toggleMining(); break;
                 }
             }
         }
-
+        
         function openModal(id) { document.getElementById(id).style.display = 'block'; }
-        function closeModal(id) { document.getElementById(id).style.display = 'none'; if(html5QrCode) html5QrCode.stop().catch(()=>{}); }
-        function copyAddr() { navigator.clipboard.writeText(pub); console.log("Copied"); }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
         window.onload = init;
     </script>
 </body>
