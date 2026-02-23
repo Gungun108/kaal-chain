@@ -2,185 +2,36 @@
 <html lang="en">
 
 <head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>🔱 KAAL WALLET</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/elliptic/6.5.4/elliptic.min.js"></script>
+    
     <style>
-        :root {
-            --kaal: #ff4500;
-            --bg: #f8f9fa;
-            --card: #ffffff;
-            --text-main: #222222;
-            --text-muted: #777777;
-            --border: #e0e0e0;
-        }
-
-        body {
-            background: var(--bg);
-            color: var(--text-main);
-            font-family: 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 15px;
-            overflow-x: hidden;
-        }
-
-        .top-nav {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            background: var(--card);
-            padding: 15px 20px;
-            border-radius: 16px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-        }
-
-        .menu-btn {
-            font-size: 24px;
-            background: none;
-            border: none;
-            color: var(--text-main);
-            cursor: pointer;
-        }
-
-        .side-menu {
-            position: fixed;
-            top: 0;
-            right: -280px;
-            width: 250px;
-            height: 100%;
-            background: var(--card);
-            box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
-            transition: 0.3s ease;
-            z-index: 1000;
-            padding-top: 60px;
-        }
-
-        .side-menu.active {
-            right: 0;
-        }
-
-        .menu-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 999;
-        }
-
-        .menu-item {
-            display: block;
-            width: 100%;
-            padding: 18px 25px;
-            text-align: left;
-            background: none;
-            border: none;
-            border-bottom: 1px solid var(--border);
-            font-size: 15px;
-            font-weight: bold;
-            color: var(--text-main);
-            cursor: pointer;
-        }
-
-        .menu-item:hover {
-            background: #f0f0f0;
-            color: var(--kaal);
-        }
-
-        .card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            padding: 25px;
-            margin-bottom: 20px;
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.04);
-            text-align: center;
-        }
-
-        .bal-text {
-            font-size: 48px;
-            font-weight: 900;
-            color: var(--kaal);
-            margin: 10px 0;
-        }
-
-        .addr-box {
-            font-size: 11px;
-            color: #008000;
-            background: #eaffea;
-            padding: 12px;
-            border-radius: 12px;
-            border: 1px dashed #4caf50;
-            cursor: pointer;
-            word-break: break-all;
-            margin-top: 10px;
-        }
-
-        .btn {
-            background: var(--kaal);
-            color: white;
-            border: none;
-            padding: 16px;
-            border-radius: 14px;
-            font-weight: bold;
-            text-transform: uppercase;
-            cursor: pointer;
-            width: 100%;
-            margin-top: 15px;
-            box-shadow: 0 4px 10px rgba(255, 69, 0, 0.3);
-        }
-
-        .btn-outline {
-            background: white;
-            color: var(--text-main);
-            border: 2px solid var(--border);
-        }
-
-        .history-container {
-            max-height: 250px;
-            overflow-y: auto;
-            font-size: 13px;
-        }
-
-        .history-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 14px;
-            background: #fafafa;
-            border-radius: 12px;
-            margin-bottom: 10px;
-            border-left: 4px solid var(--kaal);
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.6);
-            z-index: 2000;
-            overflow-y: auto;
-        }
-
-        input {
-            width: 85%;
-            padding: 15px;
-            border: 2px solid var(--border);
-            border-radius: 12px;
-            margin-bottom: 15px;
-        }
+        :root { --kaal: #ff4500; --bg: #f8f9fa; --card: #ffffff; --text-main: #222222; --text-muted: #777777; --border: #e0e0e0; }
+        body { background: var(--bg); color: var(--text-main); font-family: 'Segoe UI', sans-serif; margin: 0; padding: 15px; overflow-x: hidden; }
+        .top-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: var(--card); padding: 15px 20px; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .menu-btn { font-size: 24px; background: none; border: none; cursor: pointer; }
+        .side-menu { position: fixed; top: 0; right: -280px; width: 250px; height: 100%; background: var(--card); box-shadow: -5px 0 15px rgba(0,0,0,0.1); transition: 0.3s; z-index: 1000; padding-top: 60px; }
+        .side-menu.active { right: 0; }
+        .menu-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; }
+        .menu-item { display: block; width: 100%; padding: 18px 25px; text-align: left; background: none; border: none; border-bottom: 1px solid var(--border); font-size: 15px; font-weight: bold; cursor: pointer; }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 25px; margin-bottom: 20px; box-shadow: 0 6px 20px rgba(0,0,0,0.04); text-align: center; }
+        .bal-text { font-size: 48px; font-weight: 900; color: var(--kaal); margin: 10px 0; }
+        .addr-box { font-size: 11px; color: #008000; background: #eaffea; padding: 12px; border-radius: 12px; border: 1px dashed #4caf50; cursor: pointer; word-break: break-all; margin-top: 10px; }
+        .btn { background: var(--kaal); color: white; border: none; padding: 16px; border-radius: 14px; font-weight: bold; text-transform: uppercase; cursor: pointer; width: 100%; margin-top: 15px; }
+        .btn-outline { background: white; color: var(--text-main); border: 2px solid var(--border); }
+        .history-container { max-height: 250px; overflow-y: auto; font-size: 13px; }
+        .history-item { display: flex; justify-content: space-between; padding: 14px; background: #fafafa; border-radius: 12px; margin-bottom: 10px; border-left: 4px solid var(--kaal); }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; overflow-y: auto; }
+        input { width: 85%; padding: 15px; border: 2px solid var(--border); border-radius: 12px; margin-bottom: 15px; }
+        #reader { width: 100%; border-radius: 12px; margin-bottom: 10px; }
     </style>
 </head>
 
 <body>
-
     <div class="top-nav">
         <h2 style="margin:0; color:var(--kaal); font-weight:900;">🔱 KAAL</h2>
         <button class="menu-btn" onclick="toggleMenu()">☰</button>
@@ -202,14 +53,15 @@
     </div>
 
     <div class="card">
-        <h4 style="text-align:left; border-bottom: 1px solid var(--border); padding-bottom: 10px;">📜 Recent Activity
-        </h4>
+        <h4 style="text-align:left; border-bottom: 1px solid var(--border); padding-bottom: 10px;">📜 Recent Activity</h4>
         <div id="historyList" class="history-container">Syncing ledger...</div>
     </div>
 
     <div id="sendModal" class="modal">
         <div class="card" style="width:85%; margin:40px auto;">
             <h3>Send Funds</h3>
+            <div id="reader"></div>
+            <button class="btn btn-outline" style="margin-bottom:10px;" onclick="startScan()">📸 Open Camera</button>
             <input type="text" id="to" placeholder="Receiver Address">
             <input type="number" id="amt" placeholder="Amount">
             <button class="btn" onclick="sendTx()">Confirm Send</button>
@@ -220,7 +72,7 @@
     <div id="recModal" class="modal">
         <div class="card" style="width:85%; margin:40px auto;">
             <h3>Receive Funds</h3>
-            <div id="qrcode" style="padding:15px; background:white;"></div>
+            <div id="qrcode" style="padding:15px; background:white; display:inline-block;"></div>
             <p class="addr-box" id="recAddr"></p>
             <button class="btn btn-outline" onclick="closeModal('recModal')">Close</button>
         </div>
@@ -235,96 +87,157 @@
         </div>
     </div>
 
-    // --- Script Section in index.html ---
-<script>
-    const EC = elliptic.ec;
-    const ec = new EC('secp256k1');
-    let mining = false, pub, priv;
+    <script>
+        const EC = elliptic.ec;
+        const ec = new EC('secp256k1');
+        let mining = false, pub, priv, html5QrCode;
 
-    async function init() {
-        pub = localStorage.getItem('kaal_pub');
-        priv = localStorage.getItem('kaal_priv');
-
-        if (!pub || !priv) {
-            const keyPair = ec.genKeyPair();
-            priv = keyPair.getPrivate('hex');
-            const hashHex = ec.hash().update(keyPair.getPublic('hex', true)).digest('hex');
-            pub = "KAAL" + hashHex.substring(0, 40).toUpperCase();
-            localStorage.setItem('kaal_pub', pub);
-            localStorage.setItem('kaal_priv', priv);
+        function toggleMenu() {
+            const menu = document.getElementById('sideMenu');
+            const overlay = document.getElementById('menuOverlay');
+            menu.classList.toggle('active');
+            overlay.style.display = menu.classList.contains('active') ? 'block' : 'none';
         }
 
-        document.getElementById('addrDisp').innerText = pub;
-        document.getElementById('recAddr').innerText = pub;
-        
-        const qrElem = document.getElementById("qrcode");
-        qrElem.innerHTML = "";
-        new QRCode(qrElem, { text: pub, width: 160, height: 160 });
-        
-        sync();
-        setInterval(sync, 10000); 
-    }
+        function openModal(id) { document.getElementById(id).style.display = 'block'; }
+        function closeModal(id) { 
+            document.getElementById(id).style.display = 'none'; 
+            if(html5QrCode) html5QrCode.stop();
+        }
+        function openAndCloseMenu(id) { toggleMenu(); openModal(id); }
+        function showKeyAndCloseMenu() { toggleMenu(); prompt("YOUR PRIVATE KEY:", priv); }
 
-    async function sync() {
-        try {
-            const res = await fetch('/get_info', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ address: pub })
-            }).then(r => r.json());
+        async function init() {
+            pub = localStorage.getItem('kaal_pub');
+            priv = localStorage.getItem('kaal_priv');
 
-            document.getElementById('bal').innerText = res.balance.toFixed(2);
-            window.last_proof = res.last_proof;
-            window.diff = res.difficulty || 2;
+            if (!pub || !priv) {
+                const keyPair = ec.genKeyPair();
+                priv = keyPair.getPrivate('hex');
+                const pubHex = keyPair.getPublic('hex', true);
+                const hashHex = ec.hash().update(pubHex).digest('hex');
+                pub = "KAAL" + hashHex.substring(0, 40).toUpperCase();
+                localStorage.setItem('kaal_pub', pub);
+                localStorage.setItem('kaal_priv', priv);
+            }
 
-            const stats = await fetch('/get_stats').then(r => r.json());
-            let html = '';
-            stats.chain.forEach(block => {
-                block.transactions.forEach(tx => {
-                    if (tx.sender === pub || tx.receiver === pub) {
-                        let type = tx.receiver === pub ? "IN" : "OUT";
-                        html += `<div class="history-item">
-                            <div><b>${tx.sender === "KAAL_NETWORK" ? "⚡ Reward" : "Transfer"}</b></div>
-                            <div style="color:${type === 'IN' ? 'green' : 'red'}">${type === 'IN' ? '+' : '-'}${tx.amount}</div>
-                        </div>`;
-                    }
-                });
-            });
-            document.getElementById('historyList').innerHTML = html || 'No activity yet.';
-        } catch (e) { console.log("Sync Error"); }
-    }
+            document.getElementById('addrDisp').innerText = pub;
+            document.getElementById('recAddr').innerText = pub;
+            
+            document.getElementById("qrcode").innerHTML = "";
+            new QRCode(document.getElementById("qrcode"), { text: pub, width: 160, height: 160 });
+            
+            sync();
+            setInterval(sync, 10000); 
+        }
 
-    async function toggleMining() {
-        mining = !mining;
-        document.getElementById('mineBtn').innerText = mining ? "🛑 STOP MINING" : "⚡ START MINING";
-        if (mining) mineLoop();
-    }
-
-    async function mineLoop() {
-        let n = Math.floor(Math.random() * 1000);
-        while (mining) {
-            n++;
-            if (n % 500 === 0) await new Promise(r => setTimeout(r, 50));
-            const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(window.last_proof + "" + n));
-            const hex = Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2, '0')).join('');
-            if (hex.startsWith('0'.repeat(window.diff || 2))) {
-                await fetch('/mine', {
+        async function sync() {
+            try {
+                const res = await fetch('/get_info', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ address: pub, proof: n })
+                    body: JSON.stringify({ address: pub })
+                }).then(r => r.json());
+
+                document.getElementById('bal').innerText = res.balance.toFixed(2);
+                window.last_proof = res.last_proof || 100;
+                window.diff = res.difficulty || 2;
+
+                const stats = await fetch('/get_stats').then(r => r.json());
+                let html = '';
+                stats.chain.forEach(block => {
+                    block.transactions.forEach(tx => {
+                        if (tx.sender === pub || tx.receiver === pub) {
+                            let type = tx.receiver === pub ? "IN" : "OUT";
+                            html += `<div class="history-item">
+                                <div><b>${tx.sender === "KAAL_NETWORK" ? "⚡ Reward" : "Transfer"}</b><br><small>${new Date(tx.timestamp*1000).toLocaleTimeString()}</small></div>
+                                <div style="color:${type === 'IN' ? 'green' : 'red'}">${type === 'IN' ? '+' : '-'}${tx.amount}</div>
+                            </div>`;
+                        }
+                    });
                 });
-                sync(); break;
+                document.getElementById('historyList').innerHTML = html || 'No activity yet.';
+            } catch (e) { console.log("Sync Error"); }
+        }
+
+        async function sendTx() {
+            const to = document.getElementById('to').value.trim();
+            const amt = document.getElementById('amt').value;
+            if (!to || !amt) return alert("Please fill all fields.");
+
+            try {
+                const key = ec.keyFromPrivate(priv);
+                const msg = pub + to + amt;
+                const sig = key.sign(msg);
+                const signature = sig.r.toString(16).padStart(64, '0') + sig.s.toString(16).padStart(64, '0');
+
+                const res = await fetch('/add_tx', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sender: pub, receiver: to, amount: amt, signature: signature })
+                }).then(r => r.json());
+
+                alert(res.message);
+                if(res.message.includes('Success')) closeModal('sendModal');
+                sync();
+            } catch (e) { alert("Transaction Failed"); }
+        }
+
+        async function startScan() {
+            if (!window.isSecureContext) return alert("Camera needs HTTPS!");
+            html5QrCode = new Html5Qrcode("reader");
+            await html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (decodedText) => {
+                document.getElementById('to').value = decodedText;
+                html5QrCode.stop();
+            });
+        }
+
+        async function toggleMining() {
+            mining = !mining;
+            const btn = document.getElementById('mineBtn');
+            btn.innerText = mining ? "🛑 STOP MINING" : "⚡ START MINING";
+            btn.style.background = mining ? "white" : "#ff4500";
+            btn.style.color = mining ? "black" : "white";
+            if (mining) mineLoop();
+        }
+
+        async function mineLoop() {
+            let n = Math.floor(Math.random() * 10000);
+            while (mining) {
+                n++;
+                if (n % 400 === 0) await new Promise(r => setTimeout(r, 50));
+                
+                const message = window.last_proof + "" + n;
+                const msgBuffer = new TextEncoder().encode(message);
+                const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
+                const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+                
+                if (hashHex.startsWith('0'.repeat(window.diff || 2))) {
+                    await fetch('/mine', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ address: pub, proof: n })
+                    });
+                    sync();
+                    break;
+                }
             }
         }
-    }
 
-    // Camera fix for Render HTTPS
-    async function startScan() {
-        if (!window.isSecureContext) return alert("Camera needs HTTPS!");
-        // ... (Existing html5QrCode logic)
-    }
-</script>
+        function importWallet() {
+            const k = document.getElementById('impKey').value.trim();
+            if(k.length < 10) return alert("Invalid Key");
+            const keyPair = ec.keyFromPrivate(k);
+            const pubHex = keyPair.getPublic('hex', true);
+            const hashHex = ec.hash().update(pubHex).digest('hex');
+            localStorage.setItem('kaal_priv', k);
+            localStorage.setItem('kaal_pub', "KAAL" + hashHex.substring(0, 40).toUpperCase());
+            location.reload();
+        }
+
+        function copyText() { navigator.clipboard.writeText(pub); alert("Address Copied!"); }
+        window.onload = init;
+    </script>
 </body>
-
-
 </html>
