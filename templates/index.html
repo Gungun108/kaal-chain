@@ -61,70 +61,95 @@
     </div>
 
     <script>
-    const ec = new (elliptic.ec)('secp256k1');
-    let mining = false, pub, priv, html5QrCode;
+        const ec = new (elliptic.ec)('secp256k1');
+        let mining = false, pub, priv, html5QrCode;
 
-    // ... init function wahi purana ...
+        // --- 1. Wallet & Sync ---
+        async function init() {
+            pub = localStorage.getItem('kaal_pub');
+            priv = localStorage.getItem('kaal_priv');
 
-    async function sync() {
-        try {
-            const res = await fetch('/get_info', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({address: pub})
-            }).then(r => r.json());
+            if (!pub || !priv) {
+                const key = ec.genKeyPair();
+                priv = key.getPrivate('hex');
+                const pubHex = key.getPublic('hex', true);
+                pub = "KAAL" + ec.hash().update(pubHex).digest('hex').substring(0, 40).toUpperCase();
+                localStorage.setItem('kaal_pub', pub);
+                localStorage.setItem('kaal_priv', priv);
+            }
 
-            document.getElementById('bal').innerText = res.balance.toFixed(2);
-            window.last_proof = res.last_proof || 100;
-            window.diff = res.difficulty || 2;
-
-            const stats = await fetch('/get_stats').then(r => r.json());
-            let html = '';
-            stats.chain.forEach(b => b.transactions.forEach(tx => {
-                if (tx.sender === pub || tx.receiver === pub) {
-                    let isIN = tx.receiver === pub;
-                    html += `<div class="history-item">
-                        <div><b>${tx.sender === "KAAL_NETWORK" ? "⚡ Reward" : "Sent"}</b></div>
-                        <div style="color:${isIN ? 'green' : 'red'}; font-weight:bold;">${isIN ? '+' : '-'}${tx.amount}</div>
-                    </div>`;
-                }
-            }));
-            document.getElementById('historyList').innerHTML = html || 'No activity yet.';
-        } catch(e) { console.log("Silent Sync..."); } // Popup hata diya
-    }
-
-    async function mineLoop() {
-        let n = Math.floor(Math.random() * 50000);
-        while (mining) {
-            n++;
-            if (n % 400 === 0) await new Promise(r => setTimeout(r, 80));
+            document.getElementById('addrDisp').innerText = pub;
+            document.getElementById('recAddrDisplay').innerText = pub;
+            document.getElementById('qrcode').innerHTML = "";
+            new QRCode(document.getElementById("qrcode"), { text: pub, width: 150, height: 150 });
             
-            const msg = (window.last_proof || 100) + "" + n;
-            const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg));
-            const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-            
-            if (hex.startsWith('0'.repeat(window.diff || 2))) {
-                await fetch('/mine', {
+            sync();
+            setInterval(sync, 8000); 
+        }
+
+        async function sync() {
+            try {
+                const res = await fetch('/get_info', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({address: pub, proof: n})
-                });
-                sync(); // Success popup band, auto sync hoga
-                break;
+                    body: JSON.stringify({address: pub})
+                }).then(r => r.json());
+
+                document.getElementById('bal').innerText = res.balance.toFixed(2);
+                window.last_proof = res.last_proof || 100;
+                window.diff = res.difficulty || 2;
+
+                const stats = await fetch('/get_stats').then(r => r.json());
+                let html = '';
+                stats.chain.forEach(b => b.transactions.forEach(tx => {
+                    if (tx.sender === pub || tx.receiver === pub) {
+                        let isIN = tx.receiver === pub;
+                        html += `<div class="history-item">
+                            <div><b>${tx.sender === "KAAL_NETWORK" ? "⚡ Reward" : "Sent"}</b><br><small>${new Date(tx.timestamp*1000).toLocaleTimeString()}</small></div>
+                            <div style="color:${isIN ? 'green' : 'red'}; font-weight:bold;">${isIN ? '+' : '-'}${tx.amount}</div>
+                        </div>`;
+                    }
+                }));
+                document.getElementById('historyList').innerHTML = html || 'No activity yet.';
+            } catch(e) { console.log("Silent Sync..."); }
+        }
+
+        // --- 2. Mining Logic (No Popups) ---
+        function toggleMining() {
+            mining = !mining;
+            const btn = document.getElementById('mineBtn');
+            btn.innerText = mining ? "🛑 STOP MINING" : "⚡ START MINING";
+            btn.style.background = mining ? "white" : "#ff4500";
+            btn.style.color = mining ? "black" : "white";
+            if (mining) mineLoop();
+        }
+
+        async function mineLoop() {
+            console.log("Mining started...");
+            let n = Math.floor(Math.random() * 100000);
+            while (mining) {
+                n++;
+                if (n % 400 === 0) await new Promise(r => setTimeout(r, 60)); 
+                
+                const msg = (window.last_proof || 100) + "" + n;
+                const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg));
+                const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+                
+                if (hex.startsWith('0'.repeat(window.diff || 2))) {
+                    await fetch('/mine', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({address: pub, proof: n})
+                    });
+                    sync();
+                    mining = false; // Background sync ke baad stop logic
+                    toggleMining();
+                    break;
+                }
             }
         }
-    }
 
-    async function sendTx() {
-        // ... purana logic ...
-        // Alert ki jagah console log ya UI text update use karein
-        const res = await fetch('/add_tx', { ... }).then(r => r.json());
-        console.log(res.message); 
-        if(res.message.includes("Success")) closeModal('sendModal');
-        sync();
-    }
-</script>
-        // --- 3. Camera & Send ---
+        // --- 3. Camera & Modal UI ---
         function openModal(id) { document.getElementById(id).style.display = 'block'; }
         function closeModal(id) { 
             document.getElementById(id).style.display = 'none'; 
@@ -150,20 +175,24 @@
             const sig = key.sign(msg);
             const signature = sig.r.toString(16).padStart(64, '0') + sig.s.toString(16).padStart(64, '0');
 
-            const res = await fetch('/add_tx', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({sender: pub, receiver: to, amount: amt, signature: signature})
-            }).then(r => r.json());
-            
-            alert(res.message);
-            if(res.message.includes("Success")) closeModal('sendModal');
-            sync();
+            try {
+                const res = await fetch('/add_tx', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({sender: pub, receiver: to, amount: amt, signature: signature})
+                }).then(r => r.json());
+                
+                if(res.message.includes("Success")) {
+                    closeModal('sendModal');
+                    sync();
+                } else {
+                    alert(res.message);
+                }
+            } catch(e) { console.log("Tx error"); }
         }
 
-        function copyAddr() { navigator.clipboard.writeText(pub); alert("Address Copied!"); }
+        function copyAddr() { navigator.clipboard.writeText(pub); console.log("Address Copied!"); }
         window.onload = init;
     </script>
 </body>
 </html>
-
