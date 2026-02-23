@@ -8,267 +8,55 @@
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/elliptic/6.5.4/elliptic.min.js"></script>
     <style>
-        :root { --kaal: #ff4500; --bg: #f8f9fa; --card: #ffffff; --border: #e0e0e0; }
-        body { background: var(--bg); font-family: 'Segoe UI', sans-serif; margin: 0; padding: 15px; overflow-x: hidden; }
-        .card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 25px; margin-bottom: 20px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-        .bal-text { font-size: 48px; font-weight: 900; color: var(--kaal); margin: 10px 0; }
-        .addr-box { font-size: 11px; color: #008000; background: #eaffea; padding: 12px; border-radius: 12px; border: 1px dashed #4caf50; word-break: break-all; cursor: pointer; }
-        .btn { background: var(--kaal); color: white; border: none; padding: 16px; border-radius: 14px; font-weight: bold; width: 100%; margin-top: 15px; cursor: pointer; }
-        .btn-outline { background: white; color: #222; border: 2px solid var(--border); }
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; overflow-y: auto; }
-        .history-item { display: flex; justify-content: space-between; padding: 14px; background: #fafafa; border-radius: 12px; margin-bottom: 10px; border-left: 4px solid var(--kaal); }
-        input { width: 90%; padding: 12px; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 10px; }
-        #reader { width: 100%; border-radius: 15px; }
+        :root { --kaal: #ff4500; --bg: #f8f9fa; --card: #ffffff; }
+        body { background: var(--bg); font-family: 'Segoe UI', sans-serif; margin: 0; padding: 15px; text-align: center; }
+        .card { background: var(--card); border-radius: 20px; padding: 20px; margin-bottom: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #ddd; }
+        .bal-text { font-size: 50px; font-weight: 900; color: var(--kaal); margin: 5px 0; }
+        .addr-box { font-size: 10px; color: #008000; background: #eaffea; padding: 10px; border-radius: 10px; border: 1px dashed #4caf50; word-break: break-all; margin: 10px 0; cursor: pointer; }
+        .btn { background: var(--kaal); color: white; border: none; padding: 15px; border-radius: 12px; font-weight: bold; width: 100%; cursor: pointer; margin-top: 10px; }
+        .btn-outline { background: white; color: #333; border: 1px solid #ccc; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 999; }
+        .history-item { display: flex; justify-content: space-between; padding: 12px; background: #fff; border-radius: 10px; margin-bottom: 8px; border-left: 5px solid var(--kaal); font-size: 13px; text-align: left; }
     </style>
 </head>
 <body>
+
     <div class="card">
         <h2 style="color:var(--kaal); margin:0;">🔱 KAAL WALLET</h2>
         <div id="bal" class="bal-text">0.00</div>
-        <div style="font-size:12px; color:#777; margin-bottom:10px;">KAAL COINS</div>
-        <div class="addr-box" id="addrDisp" onclick="copyText()">Address Loading...</div>
-        <button class="btn" id="mineBtn" onclick="toggleMining()">⚡ START MINING</button>
-        <button class="btn btn-outline" onclick="openModal('sendModal')">📤 SEND</button>
-        <button class="btn btn-outline" onclick="openModal('recModal')">📥 RECEIVE</button>
-    </div>
-
-    <div class="card">
-        <h4 style="text-align:left; border-bottom:1px solid #eee; padding-bottom:10px;">📜 Activity</h4>
-        <div id="historyList" style="font-size: 13px;">Syncing ledger...</div>
-    </div>
-
-    <div id="sendModal" class="modal">
-        <div class="card" style="width:85%; margin:40px auto;">
-            <h3>Send Funds</h3>
-            <div id="reader"></div>
-            <button class="btn btn-outline" onclick="startScan()">📸 Open Camera</button>
-            <input type="text" id="to" placeholder="Receiver Address">
-            <input type="number" id="amt" placeholder="Amount">
-            <button class="btn" onclick="sendTx()">Confirm</button>
-            <button class="btn btn-outline" onclick="closeModal('sendModal')">Cancel</button>
-        </div>
-    </div>
-
-    <div id="recModal" class="modal">
-        <div class="card" style="width:85%; margin:40px auto;">
-            <h3>Your QR Code</h3>
-            <div id="qrcode" style="background:white; padding:10px; display:inline-block; border-radius:10px;"></div>
-            <p id="recAddr" style="font-size:10px; word-break:break-all; margin-top:15px; color:#555;"></p>
-            <button class="btn btn-outline" onclick="closeModal('recModal')">Close</button>
-        </div>
-    </div>
-
-    <script>
-        const ec = new (elliptic.ec)('secp256k1');
-        let mining = false, pub, priv, html5QrCode;
-
-        function openModal(id) { document.getElementById(id).style.display = 'block'; }
-        function closeModal(id) { 
-            document.getElementById(id).style.display = 'none'; 
-            if(html5QrCode) html5QrCode.stop().catch(() => {}); 
-        }
-
-        async function init() {
-            pub = localStorage.getItem('kaal_pub');
-            priv = localStorage.getItem('kaal_priv');
-            if (!pub || !priv) {
-                const key = ec.genKeyPair();
-                priv = key.getPrivate('hex');
-                // Elliptic hash use kiya taaki browser crypto API block na kare
-                const pubHex = key.getPublic('hex', true);
-                const hashHex = ec.hash().update(pubHex).digest('hex');
-                pub = "KAAL" + hashHex.substring(0, 40).toUpperCase();
-                localStorage.setItem('kaal_pub', pub);
-                localStorage.setItem('kaal_priv', priv);
-            }
-            document.getElementById('addrDisp').innerText = pub;
-            document.getElementById('recAddr').innerText = pub;
-            document.getElementById("qrcode").innerHTML = "";
-            new QRCode(document.getElementById("qrcode"), { text: pub, width: 160, height: 160 });
-            sync();
-            setInterval(sync, 10000);
-        }
-
-        async function sync() {
-            try {
-                const res = await fetch('/get_info', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({address: pub})
-                }).then(r => r.json());
-
-                document.getElementById('bal').innerText = res.balance.toFixed(2);
-                window.last_proof = res.last_proof || 100;
-                window.diff = res.difficulty || 2;
-
-                const stats = await fetch('/get_stats').then(r => r.json());
-                let html = '';
-                stats.chain.forEach(b => b.transactions.forEach(tx => {
-                    if (tx.sender === pub || tx.receiver === pub) {
-                        let isIN = tx.receiver === pub;
-                        html += `<div class="history-item">
-                            <div style="text-align:left;"><b>${tx.sender === "KAAL_NETWORK" ? "⚡ Reward" : "Transfer"}</b><br><small>${new Date(tx.timestamp*1000).toLocaleTimeString()}</small></div>
-                            <div style="color:${isIN ? 'green' : 'red'}; font-weight:bold;">${isIN ? '+' : '-'}${tx.amount}</div>
-                        </div>`;
-                    }
-                }));
-                document.getElementById('historyList').innerHTML = html || 'No activity yet.';
-            } catch(e) { console.log("Sync failed"); }
-        }
-
-        async function toggleMining() {
-    mining = !mining;
-    const btn = document.getElementById('mineBtn');
-    
-    if (mining) {
-        btn.innerText = "🛑 STOP MINING";
-        btn.style.background = "white";
-        btn.style.color = "black";
-        console.log("Mining sequence initiated...");
-        mineLoop(); 
-    } else {
-        btn.innerText = "⚡ START MINING";
-        btn.style.background = "#ff4500";
-        btn.style.color = "white";
-        console.log("Mining stopped by user.");
-    }
-}
-
-async function mineLoop() {
-    // Fallback values agar server response slow ho
-    let lastProof = window.last_proof || 100;
-    let difficulty = window.diff || 2;
-    let n = Math.floor(Math.random() * 100000); 
-
-    console.log("Starting Loop with Difficulty:", difficulty);
-
-    while (mining) {
-        n++;
+        <div style="font-size:12px; color:gray;">KAAL COINS</div>
+        <div class="addr-box" id="addrDisp" onclick="copyAddr()">Loading Address...</div>
         
-        // Render CPU Fix: Har 200 cycles par 100ms ka break
-        if (n % 200 === 0) {
-            await new Promise(r => setTimeout(r, 100)); 
-        }
-
-        try {
-            const msg = lastProof + "" + n;
-            const encodedMsg = new TextEncoder().encode(msg);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', encodedMsg);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-            // Check if hash matches difficulty
-            if (hashHex.startsWith('0'.repeat(difficulty))) {
-                console.log("BLOCK FOUND! Proof:", n);
-                
-                const response = await fetch('/mine', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ address: pub, proof: n })
-                }).then(r => r.json());
-
-                alert("🔥 Block Mined Successfully! Reward: 51 KAAL");
-                mining = false; // Stop loop after success
-                toggleMining(); // UI Reset
-                sync(); // Balance update
-                break;
-            }
-        } catch (err) {
-            console.error("Mining Loop Error:", err);
-            mining = false;
-            break;
-        }
-    }
-}
-        async function startScan() {
-            if (!window.isSecureContext) return alert("Camera needs HTTPS (Render Link)!");
-            html5QrCode = new Html5Qrcode("reader");
-            try {
-                await html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (text) => {
-                    document.getElementById('to').value = text;
-                    html5QrCode.stop();
-                });
-            } catch(e) { alert("Camera Error: Check Permissions"); }
-        }
-
-        async function sendTx() {
-            const to = document.getElementById('to').value, amt = document.getElementById('amt').value;
-            if(!to || !amt) return alert("Fill all fields");
-            try {
-                const key = ec.keyFromPrivate(priv), msg = pub + to + amt, sig = key.sign(msg);
-                const signature = sig.r.toString(16).padStart(64, '0') + sig.s.toString(16).padStart(64, '0');
-                const res = await fetch('/add_tx', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({sender: pub, receiver: to, amount: amt, signature: signature})
-                }).then(r => r.json());
-                alert(res.message);
-                if(res.message.includes("Success")) closeModal('sendModal');
-                sync();
-            } catch(e) { alert("Transaction Failed"); }
-        }
-
-        function copyText() { navigator.clipboard.writeText(pub); alert("Address Copied!"); }
-        window.onload = init;
-    </script>
-</body>
-</html><!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🔱 KAAL WALLET</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="https://unpkg.com/html5-qrcode"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/elliptic/6.5.4/elliptic.min.js"></script>
-    <style>
-        :root { --kaal: #ff4500; --bg: #f8f9fa; --card: #ffffff; --border: #e0e0e0; }
-        body { background: var(--bg); font-family: 'Segoe UI', sans-serif; margin: 0; padding: 15px; overflow-x: hidden; }
-        .card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 25px; margin-bottom: 20px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-        .bal-text { font-size: 48px; font-weight: 900; color: var(--kaal); margin: 10px 0; }
-        .addr-box { font-size: 11px; color: #008000; background: #eaffea; padding: 12px; border-radius: 12px; border: 1px dashed #4caf50; word-break: break-all; cursor: pointer; }
-        .btn { background: var(--kaal); color: white; border: none; padding: 16px; border-radius: 14px; font-weight: bold; width: 100%; margin-top: 15px; cursor: pointer; }
-        .btn-outline { background: white; color: #222; border: 2px solid var(--border); }
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; overflow-y: auto; }
-        .history-item { display: flex; justify-content: space-between; padding: 14px; background: #fafafa; border-radius: 12px; margin-bottom: 10px; border-left: 4px solid var(--kaal); }
-        input { width: 90%; padding: 12px; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 10px; }
-        #reader { width: 100%; border-radius: 15px; }
-    </style>
-</head>
-<body>
-    <div class="card">
-        <h2 style="color:var(--kaal); margin:0;">🔱 KAAL WALLET</h2>
-        <div id="bal" class="bal-text">0.00</div>
-        <div style="font-size:12px; color:#777; margin-bottom:10px;">KAAL COINS</div>
-        <div class="addr-box" id="addrDisp" onclick="copyText()">Address Loading...</div>
         <button class="btn" id="mineBtn" onclick="toggleMining()">⚡ START MINING</button>
-        <button class="btn btn-outline" onclick="openModal('sendModal')">📤 SEND</button>
-        <button class="btn btn-outline" onclick="openModal('recModal')">📥 RECEIVE</button>
+        <div style="display: flex; gap: 10px;">
+            <button class="btn btn-outline" onclick="openModal('sendModal')">📤 SEND</button>
+            <button class="btn btn-outline" onclick="openModal('recModal')">📥 RECEIVE</button>
+        </div>
     </div>
 
     <div class="card">
-        <h4 style="text-align:left; border-bottom:1px solid #eee; padding-bottom:10px;">📜 Activity</h4>
-        <div id="historyList" style="font-size: 13px;">Syncing ledger...</div>
+        <h4 style="text-align:left; margin-top:0;">📜 Activity</h4>
+        <div id="historyList">Syncing...</div>
     </div>
 
     <div id="sendModal" class="modal">
-        <div class="card" style="width:85%; margin:40px auto;">
-            <h3>Send Funds</h3>
-            <div id="reader"></div>
-            <button class="btn btn-outline" onclick="startScan()">📸 Open Camera</button>
-            <input type="text" id="to" placeholder="Receiver Address">
-            <input type="number" id="amt" placeholder="Amount">
-            <button class="btn" onclick="sendTx()">Confirm</button>
-            <button class="btn btn-outline" onclick="closeModal('sendModal')">Cancel</button>
+        <div class="card" style="width:85%; margin:50px auto;">
+            <h3>Send KAAL</h3>
+            <div id="reader" style="width:100%;"></div>
+            <button class="btn btn-outline" onclick="startCamera()">📸 Open Scanner</button>
+            <input type="text" id="to" placeholder="Receiver Address" style="width:90%; padding:12px; margin-top:10px; border-radius:8px; border:1px solid #ccc;">
+            <input type="number" id="amt" placeholder="Amount" style="width:90%; padding:12px; margin-top:10px; border-radius:8px; border:1px solid #ccc;">
+            <button class="btn" onclick="sendTx()">CONFIRM SEND</button>
+            <button class="btn btn-outline" onclick="closeModal('sendModal')">CLOSE</button>
         </div>
     </div>
 
     <div id="recModal" class="modal">
-        <div class="card" style="width:85%; margin:40px auto;">
+        <div class="card" style="width:85%; margin:50px auto;">
             <h3>Your QR Code</h3>
-            <div id="qrcode" style="background:white; padding:10px; display:inline-block; border-radius:10px;"></div>
-            <p id="recAddr" style="font-size:10px; word-break:break-all; margin-top:15px; color:#555;"></p>
-            <button class="btn btn-outline" onclick="closeModal('recModal')">Close</button>
+            <div id="qrcode" style="display:inline-block; padding:10px; background:white;"></div>
+            <p id="recAddrDisplay" style="font-size:10px; word-break:break-all;"></p>
+            <button class="btn btn-outline" onclick="closeModal('recModal')">CLOSE</button>
         </div>
     </div>
 
@@ -276,44 +64,40 @@ async function mineLoop() {
         const ec = new (elliptic.ec)('secp256k1');
         let mining = false, pub, priv, html5QrCode;
 
-        function openModal(id) { document.getElementById(id).style.display = 'block'; }
-        function closeModal(id) { 
-            document.getElementById(id).style.display = 'none'; 
-            if(html5QrCode) html5QrCode.stop().catch(() => {}); 
-        }
-
+        // --- 1. Wallet & Sync ---
         async function init() {
             pub = localStorage.getItem('kaal_pub');
             priv = localStorage.getItem('kaal_priv');
+
             if (!pub || !priv) {
                 const key = ec.genKeyPair();
                 priv = key.getPrivate('hex');
-                // Elliptic hash use kiya taaki browser crypto API block na kare
                 const pubHex = key.getPublic('hex', true);
-                const hashHex = ec.hash().update(pubHex).digest('hex');
-                pub = "KAAL" + hashHex.substring(0, 40).toUpperCase();
+                pub = "KAAL" + ec.hash().update(pubHex).digest('hex').substring(0, 40).toUpperCase();
                 localStorage.setItem('kaal_pub', pub);
                 localStorage.setItem('kaal_priv', priv);
             }
+
             document.getElementById('addrDisp').innerText = pub;
-            document.getElementById('recAddr').innerText = pub;
-            document.getElementById("qrcode").innerHTML = "";
-            new QRCode(document.getElementById("qrcode"), { text: pub, width: 160, height: 160 });
+            document.getElementById('recAddrDisplay').innerText = pub;
+            document.getElementById('qrcode').innerHTML = "";
+            new QRCode(document.getElementById("qrcode"), { text: pub, width: 150, height: 150 });
+            
             sync();
-            setInterval(sync, 10000);
+            setInterval(sync, 8000); 
         }
 
         async function sync() {
             try {
-                const res = await fetch('/get_info', {
+                const info = await fetch('/get_info', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({address: pub})
                 }).then(r => r.json());
 
-                document.getElementById('bal').innerText = res.balance.toFixed(2);
-                window.last_proof = res.last_proof || 100;
-                window.diff = res.difficulty || 2;
+                document.getElementById('bal').innerText = info.balance.toFixed(2);
+                window.last_proof = info.last_proof || 100;
+                window.diff = info.difficulty || 2;
 
                 const stats = await fetch('/get_stats').then(r => r.json());
                 let html = '';
@@ -321,36 +105,38 @@ async function mineLoop() {
                     if (tx.sender === pub || tx.receiver === pub) {
                         let isIN = tx.receiver === pub;
                         html += `<div class="history-item">
-                            <div style="text-align:left;"><b>${tx.sender === "KAAL_NETWORK" ? "⚡ Reward" : "Transfer"}</b><br><small>${new Date(tx.timestamp*1000).toLocaleTimeString()}</small></div>
+                            <div><b>${tx.sender === "KAAL_NETWORK" ? "⚡ Reward" : "Sent"}</b><br><small>${new Date(tx.timestamp*1000).toLocaleTimeString()}</small></div>
                             <div style="color:${isIN ? 'green' : 'red'}; font-weight:bold;">${isIN ? '+' : '-'}${tx.amount}</div>
                         </div>`;
                     }
                 }));
                 document.getElementById('historyList').innerHTML = html || 'No activity yet.';
-            } catch(e) { console.log("Sync failed"); }
+            } catch(e) { console.log("Sync Error"); }
         }
 
-        async function toggleMining() {
+        // --- 2. Mining Loop (Fixed) ---
+        function toggleMining() {
             mining = !mining;
             const btn = document.getElementById('mineBtn');
             btn.innerText = mining ? "🛑 STOP MINING" : "⚡ START MINING";
             btn.style.background = mining ? "white" : "#ff4500";
             btn.style.color = mining ? "black" : "white";
-            if(mining) mineLoop();
+            if (mining) mineLoop();
         }
 
         async function mineLoop() {
-            let n = Math.floor(Math.random() * 10000);
-            while(mining) {
+            console.log("Mining started...");
+            let n = Math.floor(Math.random() * 100000);
+            while (mining) {
                 n++;
-                // Har 300 cycles ke baad break taaki Render CPU ban na kare
-                if(n % 300 === 0) await new Promise(r => setTimeout(r, 50));
+                if (n % 300 === 0) await new Promise(r => setTimeout(r, 60)); // Render CPU relief
                 
-                const msg = window.last_proof + "" + n;
+                const msg = (window.last_proof || 100) + "" + n;
                 const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg));
                 const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
                 
-                if(hex.startsWith('0'.repeat(window.diff || 2))) {
+                if (hex.startsWith('0'.repeat(window.diff || 2))) {
+                    console.log("Block Found!");
                     await fetch('/mine', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
@@ -362,37 +148,45 @@ async function mineLoop() {
             }
         }
 
-        async function startScan() {
-            if (!window.isSecureContext) return alert("Camera needs HTTPS (Render Link)!");
+        // --- 3. Camera & Send ---
+        function openModal(id) { document.getElementById(id).style.display = 'block'; }
+        function closeModal(id) { 
+            document.getElementById(id).style.display = 'none'; 
+            if(html5QrCode) html5QrCode.stop().catch(()=>{});
+        }
+
+        async function startCamera() {
+            if (!window.isSecureContext) return alert("HTTPS required for camera!");
             html5QrCode = new Html5Qrcode("reader");
-            try {
-                await html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (text) => {
-                    document.getElementById('to').value = text;
-                    html5QrCode.stop();
-                });
-            } catch(e) { alert("Camera Error: Check Permissions"); }
+            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (text) => {
+                document.getElementById('to').value = text;
+                html5QrCode.stop();
+            }).catch(err => alert("Camera Error: " + err));
         }
 
         async function sendTx() {
-            const to = document.getElementById('to').value, amt = document.getElementById('amt').value;
-            if(!to || !amt) return alert("Fill all fields");
-            try {
-                const key = ec.keyFromPrivate(priv), msg = pub + to + amt, sig = key.sign(msg);
-                const signature = sig.r.toString(16).padStart(64, '0') + sig.s.toString(16).padStart(64, '0');
-                const res = await fetch('/add_tx', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({sender: pub, receiver: to, amount: amt, signature: signature})
-                }).then(r => r.json());
-                alert(res.message);
-                if(res.message.includes("Success")) closeModal('sendModal');
-                sync();
-            } catch(e) { alert("Transaction Failed"); }
+            const to = document.getElementById('to').value.trim();
+            const amt = document.getElementById('amt').value;
+            if(!to || !amt) return alert("Fill fields!");
+            
+            const key = ec.keyFromPrivate(priv);
+            const msg = pub + to + amt;
+            const sig = key.sign(msg);
+            const signature = sig.r.toString(16).padStart(64, '0') + sig.s.toString(16).padStart(64, '0');
+
+            const res = await fetch('/add_tx', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({sender: pub, receiver: to, amount: amt, signature: signature})
+            }).then(r => r.json());
+            
+            alert(res.message);
+            if(res.message.includes("Success")) closeModal('sendModal');
+            sync();
         }
 
-        function copyText() { navigator.clipboard.writeText(pub); alert("Address Copied!"); }
+        function copyAddr() { navigator.clipboard.writeText(pub); alert("Address Copied!"); }
         window.onload = init;
     </script>
 </body>
 </html>
-
