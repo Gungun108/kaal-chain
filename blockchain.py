@@ -1,89 +1,143 @@
-import hashlib
-import json
-import time
-import os
-import ecdsa
-from pymongo import MongoClient
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🔱 KAAL WALLET</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/elliptic/6.5.4/elliptic.min.js"></script>
+    <style>
+        :root { --kaal: #ff4500; --bg: #f8f9fa; --card: #ffffff; --border: #e0e0e0; }
+        body { background: var(--bg); font-family: 'Segoe UI', sans-serif; margin: 0; padding: 15px; }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 25px; margin-bottom: 20px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .bal-text { font-size: 48px; font-weight: 900; color: var(--kaal); margin: 10px 0; }
+        .addr-box { font-size: 11px; color: #008000; background: #eaffea; padding: 12px; border-radius: 12px; border: 1px dashed #4caf50; word-break: break-all; cursor: pointer; }
+        .btn { background: var(--kaal); color: white; border: none; padding: 16px; border-radius: 14px; font-weight: bold; width: 100%; margin-top: 15px; cursor: pointer; }
+        .btn-outline { background: white; color: #222; border: 2px solid var(--border); }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; overflow-y: auto; }
+        .history-item { display: flex; justify-content: space-between; padding: 14px; background: #fafafa; border-radius: 12px; margin-bottom: 10px; border-left: 4px solid var(--kaal); }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2 style="color:var(--kaal); margin:0;">🔱 KAAL WALLET</h2>
+        <div id="bal" class="bal-text">0.00</div>
+        <div class="addr-box" id="addrDisp" onclick="copyText()">Loading...</div>
+        <button class="btn" id="mineBtn" onclick="toggleMining()">⚡ START MINING</button>
+        <button class="btn btn-outline" onclick="openModal('sendModal')">📤 SEND COINS</button>
+        <button class="btn btn-outline" onclick="openModal('recModal')">📥 RECEIVE COINS</button>
+    </div>
 
-class KaalChain:
-    def __init__(self):
-        self.chain = []
-        self.pending_transactions = []
-        self.difficulty = 2 # Render CPU ke liye 2 best hai
-        mongo_uri = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
-        
-        try:
-            self.mongo_client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
-            self.db = self.mongo_client.kaal_db
-            self.collection = self.db.ledger
-            self.load_chain_from_db()
-        except Exception as e:
-            print(f"DB Error: {e}")
-            self.create_genesis_block()
+    <div class="card">
+        <h4 style="text-align:left;">📜 Activity</h4>
+        <div id="historyList" style="font-size: 13px;">Syncing...</div>
+    </div>
 
-    def get_balance(self, address):
-        bal = 0
-        for block in self.chain:
-            for tx in block.get('transactions', []):
-                if tx['sender'] == address: bal -= float(tx['amount'])
-                if tx['receiver'] == address: bal += float(tx['amount'])
-        return round(bal, 2)
+    <div id="sendModal" class="modal">
+        <div class="card" style="width:85%; margin:40px auto;">
+            <h3>Send Funds</h3>
+            <div id="reader"></div>
+            <button class="btn btn-outline" onclick="startScan()">📸 Scan QR</button>
+            <input type="text" id="to" placeholder="Receiver Address" style="width:90%; padding:10px; margin-top:10px;">
+            <input type="number" id="amt" placeholder="Amount" style="width:90%; padding:10px; margin-top:10px;">
+            <button class="btn" onclick="sendTx()">Confirm</button>
+            <button class="btn btn-outline" onclick="closeModal('sendModal')">Cancel</button>
+        </div>
+    </div>
 
-    def verify_transaction_signature(self, sender_pub_hex, signature_hex, message):
-        if sender_pub_hex == "KAAL_NETWORK": return True
-        try:
-            pub_hex = sender_pub_hex.replace("KAAL", "")
-            vk = ecdsa.VerifyingKey.from_string(bytes.fromhex(pub_hex), curve=ecdsa.SECP256k1)
-            return vk.verify(bytes.fromhex(signature_hex), message.encode())
-        except: return False
+    <div id="recModal" class="modal">
+        <div class="card" style="width:85%; margin:40px auto;">
+            <h3>Receive</h3>
+            <div id="qrcode" style="background:white; padding:10px; display:inline-block;"></div>
+            <p id="recAddr" style="font-size:10px; word-break:break-all;"></p>
+            <button class="btn btn-outline" onclick="closeModal('recModal')">Close</button>
+        </div>
+    </div>
 
-    def add_transaction(self, sender, receiver, amount, signature=None):
-        if sender != "KAAL_NETWORK":
-            if not signature: return False, "Signature missing!"
-            msg = f"{sender}{receiver}{amount}"
-            if not self.verify_transaction_signature(sender, signature, msg):
-                return False, "Invalid Signature!"
-            if self.get_balance(sender) < float(amount):
-                return False, "Low balance!"
+    <script>
+        const ec = new (elliptic.ec)('secp256k1');
+        let mining = false, pub, priv, html5QrCode;
 
-        self.pending_transactions.append({
-            'sender': sender, 'receiver': receiver, 'amount': float(amount),
-            'timestamp': time.time(), 'signature': signature
-        })
-        return True, "Success"
+        function openModal(id) { document.getElementById(id).style.display = 'block'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; if(html5QrCode) html5QrCode.stop(); }
 
-    def create_block(self, proof, previous_hash):
-        block = {
-            'index': len(self.chain) + 1,
-            'timestamp': time.time(),
-            'transactions': self.pending_transactions,
-            'proof': proof,
-            'previous_hash': previous_hash,
-            'reward': 51
+        async function init() {
+            pub = localStorage.getItem('kaal_pub');
+            priv = localStorage.getItem('kaal_priv');
+            if (!pub) {
+                const key = ec.genKeyPair();
+                priv = key.getPrivate('hex');
+                pub = "KAAL" + ec.hash().update(key.getPublic('hex', true)).digest('hex').substring(0, 40).toUpperCase();
+                localStorage.setItem('kaal_pub', pub); localStorage.setItem('kaal_priv', priv);
+            }
+            document.getElementById('addrDisp').innerText = pub;
+            document.getElementById('recAddr').innerText = pub;
+            new QRCode(document.getElementById("qrcode"), { text: pub, width: 160, height: 160 });
+            sync(); setInterval(sync, 10000);
         }
-        block['hash'] = hashlib.sha256(json.dumps(block, sort_keys=True).encode()).hexdigest()
-        self.pending_transactions = []
-        self.chain.append(block)
-        self.save_chain_to_db()
-        return block
 
-    def save_chain_to_db(self):
-        try:
-            self.collection.delete_many({})
-            if self.chain: self.collection.insert_many(self.chain)
-        except: pass
+        async function sync() {
+            try {
+                const info = await fetch('/get_info', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({address: pub}) }).then(r => r.json());
+                document.getElementById('bal').innerText = info.balance.toFixed(2);
+                window.last_proof = info.last_proof || 100;
+                window.diff = info.difficulty || 2;
 
-    def load_chain_from_db(self):
-        try:
-            data = list(self.collection.find({}, {'_id': 0}).sort("index", 1))
-            if data: self.chain = data
-            else: self.create_genesis_block()
-        except: self.create_genesis_block()
+                const stats = await fetch('/get_stats').then(r => r.json());
+                let html = '';
+                stats.chain.forEach(b => b.transactions.forEach(tx => {
+                    if (tx.sender === pub || tx.receiver === pub) {
+                        let isIN = tx.receiver === pub;
+                        html += `<div class="history-item">
+                            <div><b>${tx.sender === "KAAL_NETWORK" ? "⚡ Reward" : "Transfer"}</b></div>
+                            <div style="color:${isIN ? 'green' : 'red'}">${isIN ? '+' : '-'}${tx.amount}</div>
+                        </div>`;
+                    }
+                }));
+                document.getElementById('historyList').innerHTML = html || 'No activity yet.';
+            } catch(e) {}
+        }
 
-    def create_genesis_block(self):
-        if not self.chain: self.create_block(proof=100, previous_hash='0')
+        async function toggleMining() {
+            mining = !mining;
+            document.getElementById('mineBtn').innerText = mining ? "🛑 STOP" : "⚡ START";
+            if(mining) mineLoop();
+        }
 
-    def mine_block(self, miner_address, proof):
-        last_hash = self.chain[-1]['hash'] if self.chain else '0'
-        self.add_transaction("KAAL_NETWORK", miner_address, 51)
-        return self.create_block(proof, last_hash)
+        async function mineLoop() {
+            let n = Math.floor(Math.random() * 10000);
+            while(mining) {
+                n++;
+                if(n % 500 === 0) await new Promise(r => setTimeout(r, 50));
+                const msg = window.last_proof + "" + n;
+                const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg));
+                const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+                if(hex.startsWith('0'.repeat(window.diff))) {
+                    await fetch('/mine', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({address: pub, proof: n}) });
+                    sync(); break;
+                }
+            }
+        }
+
+        async function startScan() {
+            html5QrCode = new Html5Qrcode("reader");
+            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (text) => {
+                document.getElementById('to').value = text;
+                html5QrCode.stop();
+            });
+        }
+
+        async function sendTx() {
+            const to = document.getElementById('to').value, amt = document.getElementById('amt').value;
+            const key = ec.keyFromPrivate(priv), msg = pub + to + amt, sig = key.sign(msg);
+            const signature = sig.r.toString(16).padStart(64, '0') + sig.s.toString(16).padStart(64, '0');
+            const res = await fetch('/add_tx', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({sender: pub, receiver: to, amount: amt, signature: signature}) }).then(r => r.json());
+            alert(res.message); if(res.message === "Success") closeModal('sendModal'); sync();
+        }
+
+        function copyText() { navigator.clipboard.writeText(pub); alert("Copied!"); }
+        window.onload = init;
+    </script>
+</body>
+</html>
