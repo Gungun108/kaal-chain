@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>👑 KAAL Admin Panel</title>
+    <style>
+        body {
+            background: #000;
+            color: #f00;
+            font-family: 'Courier New', monospace;
+            padding: 50px;
+            text-align: center;
+        }
+
+        .admin-box {
+            border: 2px solid #f00;
+            padding: 30px;
+            display: inline-block;
+            border-radius: 20px;
+        }
+
+        input {
+            background: #111;
+            color: #f00;
+            border: 1px solid #f00;
+            padding: 10px;
+            margin: 10px;
+        }
+
+        button {
+            background: #f00;
+            color: #000;
+            padding: 10px 20px;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="admin-box">
+        <h1>🔱 FOUNDER CONTROL PANEL</h1>
+        <p>NETWORK STATUS: ACTIVE</p>
+        <div>
+            Difficulty: <input type="number" id="diff" value="2">
+            <button onclick="update('difficulty', 'diff')">SET DIFFICULTY</button>
+        </div>
+        <div style="margin-top:20px;">
+            Mining Reward: <input type="number" id="rew" value="51">
+            <button onclick="update('reward', 'rew')">SET REWARD</button>
+        </div>
+    </div>
+    <script>
+        async function update(key, inputId) {
+            const val = document.getElementById(inputId).value;
+            const res = await fetch('/update_config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ [key]: val })
+            }).then(r => r.json());
+            alert(res.message);
+        }
+    </script>
+</body>
+
+</html>
