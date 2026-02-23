@@ -3,20 +3,31 @@ import json
 import time
 import os
 import ecdsa
+import urllib.parse # Ye special characters ko theek karega
 from pymongo import MongoClient
 
 class KaalChain:
     def __init__(self):
         self.chain = []
         self.pending_transactions = []
-        self.difficulty = 2 # Render par speed ke liye
+        self.difficulty = 2 
         
-        mongo_uri = os.environ.get("MONGO_URI")
-        if not mongo_uri:
-            print("WARNING: MONGO_URI not found!")
-        
+        # Connection string ko safe banane ka logic
+        raw_uri = os.environ.get("MONGO_URI")
+        if raw_uri and "@" in raw_uri:
+            try:
+                # Password ko automatically encode karna
+                prefix, rest = raw_uri.split("://")
+                user_pass, host = rest.split("@")
+                user, pwd = user_pass.split(":")
+                safe_uri = f"{prefix}://{user}:{urllib.parse.quote_plus(pwd)}@{host}"
+                self.mongo_client = MongoClient(safe_uri, serverSelectionTimeoutMS=5000)
+            except:
+                self.mongo_client = MongoClient(raw_uri, serverSelectionTimeoutMS=5000)
+        else:
+            self.mongo_client = MongoClient(raw_uri, serverSelectionTimeoutMS=5000)
+            
         try:
-            self.mongo_client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
             self.db = self.mongo_client.kaal_db
             self.collection = self.db.ledger
             self.load_chain_from_db()
@@ -32,28 +43,12 @@ class KaalChain:
                 if tx['receiver'] == address: bal += float(tx['amount'])
         return round(bal, 2)
 
-    def verify_transaction_signature(self, sender_pub_hex, signature_hex, message):
-        if sender_pub_hex == "KAAL_NETWORK": return True
+    def load_chain_from_db(self):
         try:
-            pub_hex = sender_pub_hex.replace("KAAL", "")
-            vk = ecdsa.VerifyingKey.from_string(bytes.fromhex(pub_hex), curve=ecdsa.SECP256k1)
-            return vk.verify(bytes.fromhex(signature_hex), message.encode())
-        except: return False
-
-    def add_transaction(self, sender, receiver, amount, signature=None):
-        if sender != "KAAL_NETWORK":
-            if not signature: return False, "Missing Signature"
-            msg = f"{sender}{receiver}{amount}"
-            if not self.verify_transaction_signature(sender, signature, msg):
-                return False, "Invalid Signature"
-            if self.get_balance(sender) < float(amount):
-                return False, "Insufficient Balance"
-
-        self.pending_transactions.append({
-            'sender': sender, 'receiver': receiver, 'amount': float(amount),
-            'timestamp': time.time(), 'signature': signature
-        })
-        return True, "Success"
+            data = list(self.collection.find({}, {'_id': 0}).sort("index", 1))
+            if data: self.chain = data
+            else: self.create_genesis_block()
+        except: self.create_genesis_block()
 
     def create_block(self, proof, previous_hash):
         block = {
@@ -67,26 +62,16 @@ class KaalChain:
         block['hash'] = hashlib.sha256(json.dumps(block, sort_keys=True).encode()).hexdigest()
         self.pending_transactions = []
         self.chain.append(block)
-        self.save_chain_to_db()
-        return block
-
-    def save_chain_to_db(self):
         try:
             self.collection.delete_many({})
             if self.chain: self.collection.insert_many(self.chain)
         except: pass
-
-    def load_chain_from_db(self):
-        try:
-            data = list(self.collection.find({}, {'_id': 0}).sort("index", 1))
-            if data: self.chain = data
-            else: self.create_genesis_block()
-        except: self.create_genesis_block()
+        return block
 
     def create_genesis_block(self):
         if not self.chain: self.create_block(proof=100, previous_hash='0')
 
     def mine_block(self, miner_address, proof):
         last_hash = self.chain[-1]['hash'] if self.chain else '0'
-        self.add_transaction("KAAL_NETWORK", miner_address, 51)
+        self.pending_transactions.append({'sender': "KAAL_NETWORK", 'receiver': miner_address, 'amount': 51, 'timestamp': time.time()})
         return self.create_block(proof, last_hash)
