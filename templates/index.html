@@ -117,37 +117,69 @@
         }
 
         async function toggleMining() {
-            mining = !mining;
-            const btn = document.getElementById('mineBtn');
-            btn.innerText = mining ? "🛑 STOP MINING" : "⚡ START MINING";
-            btn.style.background = mining ? "white" : "#ff4500";
-            btn.style.color = mining ? "black" : "white";
-            if(mining) mineLoop();
+    mining = !mining;
+    const btn = document.getElementById('mineBtn');
+    
+    if (mining) {
+        btn.innerText = "🛑 STOP MINING";
+        btn.style.background = "white";
+        btn.style.color = "black";
+        console.log("Mining sequence initiated...");
+        mineLoop(); 
+    } else {
+        btn.innerText = "⚡ START MINING";
+        btn.style.background = "#ff4500";
+        btn.style.color = "white";
+        console.log("Mining stopped by user.");
+    }
+}
+
+async function mineLoop() {
+    // Fallback values agar server response slow ho
+    let lastProof = window.last_proof || 100;
+    let difficulty = window.diff || 2;
+    let n = Math.floor(Math.random() * 100000); 
+
+    console.log("Starting Loop with Difficulty:", difficulty);
+
+    while (mining) {
+        n++;
+        
+        // Render CPU Fix: Har 200 cycles par 100ms ka break
+        if (n % 200 === 0) {
+            await new Promise(r => setTimeout(r, 100)); 
         }
 
-        async function mineLoop() {
-            let n = Math.floor(Math.random() * 10000);
-            while(mining) {
-                n++;
-                // Har 300 cycles ke baad break taaki Render CPU ban na kare
-                if(n % 300 === 0) await new Promise(r => setTimeout(r, 50));
+        try {
+            const msg = lastProof + "" + n;
+            const encodedMsg = new TextEncoder().encode(msg);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', encodedMsg);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+            // Check if hash matches difficulty
+            if (hashHex.startsWith('0'.repeat(difficulty))) {
+                console.log("BLOCK FOUND! Proof:", n);
                 
-                const msg = window.last_proof + "" + n;
-                const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg));
-                const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-                
-                if(hex.startsWith('0'.repeat(window.diff || 2))) {
-                    await fetch('/mine', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({address: pub, proof: n})
-                    });
-                    sync();
-                    break;
-                }
+                const response = await fetch('/mine', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ address: pub, proof: n })
+                }).then(r => r.json());
+
+                alert("🔥 Block Mined Successfully! Reward: 51 KAAL");
+                mining = false; // Stop loop after success
+                toggleMining(); // UI Reset
+                sync(); // Balance update
+                break;
             }
+        } catch (err) {
+            console.error("Mining Loop Error:", err);
+            mining = false;
+            break;
         }
-
+    }
+}
         async function startScan() {
             if (!window.isSecureContext) return alert("Camera needs HTTPS (Render Link)!");
             html5QrCode = new Html5Qrcode("reader");
@@ -363,3 +395,4 @@
     </script>
 </body>
 </html>
+
