@@ -58,19 +58,21 @@ def explorer():
     return render_template('explorer.html')
 
 @app.route('/mine', methods=['POST'])
+@app.route('/mine', methods=['POST'])
 def mine():
-    # Mining ka data (Address aur Proof) mangwana
-    v = request.get_json()
-    pata = v.get('address')
-    saboot = v.get('proof')
+    data = request.get_json()
+    proof = data.get('proof')
     
-    if pata and saboot:
-        # Blockchain mein naya block aur 40 KAAL reward jodna
-        kaal_chain.mine_block(pata, saboot)
-        return jsonify({'message': 'Mubarak ho! Mining Safal rhi'}), 200
+    # Agar ye proof pichle block ka hi hai toh reject karo
+    if kaal_chain.chain and proof == kaal_chain.chain[-1]['proof']:
+        return jsonify({'message': 'Purana proof hai bhai'}), 400
+        
+    kaal_chain.mine_block(data.get('address'), proof)
+    return jsonify({'message': 'Mined'}), 200
     return jsonify({'message': 'Data galat hai'}), 400
 
 if __name__ == '__main__':
     # Render ke liye port set karna, varna local pe 5000 chalega
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
