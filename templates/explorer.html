@@ -4,201 +4,150 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🔱 KAAL Chain Explorer</title>
+    <title>🔍 KAAL EXPLORER</title>
     <style>
         :root {
             --kaal: #ff4500;
-            --bg: #050505;
-            --card: #111;
+            --bg: #0f0f0f;
+            --card: #1a1a1a;
+            --text: #ffffff;
         }
 
         body {
             background: var(--bg);
-            color: white;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--text);
+            font-family: 'Segoe UI', sans-serif;
             margin: 0;
             padding: 20px;
         }
 
-        .container {
-            max-width: 900px;
-            margin: auto;
-        }
-
-        .header {
+        /* Stats Cards ka design */
+        .stats-row {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 2px solid var(--kaal);
-            padding-bottom: 10px;
+            gap: 15px;
             margin-bottom: 20px;
+            flex-wrap: wrap;
         }
 
-        .search-container {
-            margin-bottom: 25px;
-        }
-
-        .search-input {
-            width: 100%;
-            padding: 15px;
-            background: #111;
-            border: 1px solid #333;
-            border-radius: 10px;
-            color: white;
-            font-size: 14px;
-            outline: none;
-            transition: 0.3s;
-        }
-
-        .search-input:focus {
-            border-color: var(--kaal);
-            box-shadow: 0 0 10px rgba(255, 69, 0, 0.2);
-        }
-
-        .block-card {
+        .stat-card {
             background: var(--card);
-            border: 1px solid #222;
-            border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 15px;
-            transition: 0.3s;
+            padding: 20px;
+            border-radius: 15px;
+            flex: 1;
+            min-width: 200px;
+            border: 1px solid #333;
+            text-align: center;
+        }
+
+        .stat-card h2 {
+            color: var(--kaal);
+            margin: 0;
+            font-size: 28px;
+        }
+
+        /* Ledger Table ka design */
+        .table-container {
+            background: var(--card);
+            border-radius: 15px;
+            padding: 10px;
+            overflow-x: auto;
+            border: 1px solid #333;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 600px;
+        }
+
+        th {
             text-align: left;
+            padding: 12px;
+            border-bottom: 2px solid #333;
+            color: var(--kaal);
         }
 
-        .block-card:hover {
-            border-color: var(--kaal);
-            background: #161616;
-        }
-
-        .block-header {
-            display: flex;
-            justify-content: space-between;
+        td {
+            padding: 12px;
             border-bottom: 1px solid #222;
-            padding-bottom: 8px;
-            margin-bottom: 10px;
+            font-size: 13px;
         }
 
-        .hash {
+        .hash-text {
+            color: #00ff00;
             font-family: monospace;
             font-size: 11px;
-            color: #888;
-            word-break: break-all;
-            background: #000;
-            padding: 8px;
-            border-radius: 5px;
-        }
-
-        .tx-box {
-            margin-top: 10px;
-            font-size: 12px;
-            color: #ccc;
-        }
-
-        .tx-item {
-            padding: 8px 0;
-            border-bottom: 1px solid #1a1a1a;
-            display: flex;
-            justify-content: space-between;
-        }
-
-        .highlight {
-            color: #0f0 !important;
-            font-weight: bold;
         }
     </style>
 </head>
 
 <body>
-    <div class="container">
-        <div class="header">
-            <h2 style="margin:0;">KAAL EXPLORER 🔱</h2>
-            <div id="status" style="font-size: 12px; color: #0f0; font-weight: bold;">● Network Live</div>
-        </div>
 
-        <div class="search-container">
-            <input type="text" id="searchInput" class="search-input"
-                placeholder="🔍 Search Address (KAAL...) to view History" onkeyup="updateExplorer()">
-        </div>
+    <h1 style="text-align:center; color:var(--kaal);">🔍 KAAL CHAIN EXPLORER</h1>
 
-        <div id="chainStats" style="display:flex; gap:15px; margin-bottom:20px; font-size:14px; color:#888;">
-            <span>Blocks: <b id="blockCount" style="color:white;">-</b></span>
-            <span>Total Supply: <b id="totalSupply" style="color:var(--kaal);">-</b> KAAL</span>
+    <div class="stats-row">
+        <div class="stat-card">
+            <p>Total Blocks</p>
+            <h2 id="totalBlocks">0</h2>
         </div>
+        <div class="stat-card">
+            <p>Total KAAL Supply</p>
+            <h2 id="totalSupply">0.00</h2>
+        </div>
+        <div class="stat-card">
+            <p>Network Status</p>
+            <h2 style="color: #00ff00;">LIVE</h2>
+        </div>
+    </div>
 
-        <div id="chainBox">Loading blocks from ledger...</div>
+    <div class="table-container">
+        <h3>Recent Blocks</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Index</th>
+                    <th>Timestamp</th>
+                    <th>Transactions</th>
+                    <th>Hash</th>
+                </tr>
+            </thead>
+            <tbody id="blockTable">
+            </tbody>
+        </table>
     </div>
 
     <script>
         async function updateExplorer() {
             try {
-                const stats = await fetch('/get_stats').then(r => r.json());
-                const searchAddr = document.getElementById('searchInput').value.trim().toUpperCase();
+                // Server se poori chain aur stats mangwana
+                const res = await fetch('/get_stats');
+                const data = await res.json();
 
-                document.getElementById('blockCount').innerText = stats.blocks;
-                document.getElementById('totalSupply').innerText = stats.total_supply.toFixed(2);
+                // Stats update karna
+                document.getElementById('totalBlocks').innerText = data.blocks;
+                document.getElementById('totalSupply').innerText = data.total_supply.toFixed(2) + " KAAL";
 
+                // Table mein blocks dhalna
                 let html = '';
-                const chainArray = stats.chain;
-
-                // BULLETPROOF REVERSE LOOP: Sabse last block se shuru karega aur zero tak jayega
-                for (let i = chainArray.length - 1; i >= 0; i--) {
-                    let block = chainArray[i];
-                    let txHtml = '';
-                    let hasMatchingTx = false;
-
-                    const txArray = block.transactions;
-
-                    // Transactions ko bhi reverse mein check karega
-                    for (let j = txArray.length - 1; j >= 0; j--) {
-                        let tx = txArray[j];
-                        const isSender = tx.sender.toUpperCase() === searchAddr;
-                        const isReceiver = tx.receiver.toUpperCase() === searchAddr;
-
-                        if (searchAddr === "" || isSender || isReceiver) {
-                            if (searchAddr !== "") hasMatchingTx = true;
-
-                            txHtml += `
-                                <div class="tx-item">
-                                    <span>
-                                        <b class="${isSender ? 'highlight' : ''}">${tx.sender.substring(0, 12)}...</b> 
-                                        ⮕ 
-                                        <b class="${isReceiver ? 'highlight' : ''}">${tx.receiver.substring(0, 12)}...</b>
-                                    </span>
-                                    <span style="color: var(--kaal); font-weight:bold;">${tx.amount} KAAL</span>
-                                </div>`;
-                        }
-                    }
-
-                    if (searchAddr === "" || hasMatchingTx) {
-                        html += `
-                            <div class="block-card">
-                                <div class="block-header">
-                                    <span style="font-size: 16px; font-weight: bold; color: var(--kaal);">BLOCK #${block.index}</span>
-                                    <span style="font-size: 11px; color: #888;">${new Date(block.timestamp * 1000).toLocaleString()}</span>
-                                </div>
-                                <div class="hash">Hash: ${block.hash}</div>
-                                <div class="tx-box">
-                                    <b style="color: #666;">Transactions:</b> ${block.transactions.length}
-                                    <div style="margin-top:8px; border-top:1px solid #222; padding-top:5px;">
-                                        ${txHtml || '<span style="color:#444;">Genesis / Mining Reward Block</span>'}
-                                    </div>
-                                </div>
-                            </div>`;
-                    }
-                }
-
-                document.getElementById('chainBox').innerHTML = html || '<div class="block-card">No transactions found for this address.</div>';
-                document.getElementById('status').innerText = "● Network Live";
-                document.getElementById('status').style.color = "#0f0";
+                data.chain.forEach(block => {
+                    html += `
+                        <tr>
+                            <td><b>#${block.index}</b></td>
+                            <td>${new Date(block.timestamp * 1000).toLocaleString()}</td>
+                            <td>${block.transactions.length} Tx</td>
+                            <td class="hash-text">${block.hash.substring(0, 30)}...</td>
+                        </tr>
+                    `;
+                });
+                document.getElementById('blockTable').innerHTML = html;
             } catch (e) {
-                console.error("Sync Error:", e);
-                document.getElementById('status').innerText = "○ Network Desync";
-                document.getElementById('status').style.color = "red";
+                console.log("Explorer update fail...");
             }
         }
 
-        setInterval(updateExplorer, 5000);
+        // Shuruat mein load karna aur har 5 second mein refresh karna
         updateExplorer();
+        setInterval(updateExplorer, 5000);
     </script>
 </body>
 
