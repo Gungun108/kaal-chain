@@ -154,30 +154,30 @@ document.getElementById('historyList').innerHTML = html || '<p style="text-align
 
         async function mineLoop() {
     let n = Math.floor(Math.random() * 1000000);
-    while(mining) { // Yeh check karega ki button stop hua ya nahi
+    while(mining) {
         n++;
-        // Mining ko thoda break dena zaruri hai stop check karne ke liye
-        if(n % 500 === 0) await new Promise(r => setTimeout(r, 10)); 
+        // Har 100 iterations ke baad 50ms ka gap
+        // Isse browser ko Stop button check karne ka time milega
+        if(n % 100 === 0) await new Promise(r => setTimeout(r, 50)); 
         
         const msg = (window.last_proof || 100) + "" + n;
         const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg));
         const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
         
         if(hex.startsWith('0'.repeat(window.diff || 2))) {
-            const res = await fetch('/mine', { 
+            await fetch('/mine', { 
                 method: 'POST', 
                 headers: {'Content-Type': 'application/json'}, 
                 body: JSON.stringify({address: pub, proof: n}) 
             });
-            if(res.ok) {
-                mining = false; 
-                document.getElementById('mineBtn').innerText = "⚡ START MINING";
-                sync(); 
-                break; 
-            }
+            mining = false; // Block milte hi loop band
+            document.getElementById('mineBtn').innerText = "⚡ START MINING";
+            sync(); 
+            break; 
         }
     }
 }
+
 
         async function startScan() {
             if (!window.isSecureContext) return alert("HTTPS required!");
@@ -194,4 +194,5 @@ document.getElementById('historyList').innerHTML = html || '<p style="text-align
     </script>
 </body>
 </html>
+
 
