@@ -111,19 +111,19 @@ class KaalChain:
         # 2. Balance Check (Jo pehle kiya tha)
         current_balance = self.get_balance(sender)
         if sender != "KAAL_NETWORK" and current_balance < float(amount):
-            return False, "Balance kam hai!"
+            return False, "Low Balance!"
 
         # Baaki ka purana code...
         self.pending_transactions.append({
             'sender': sender, 'receiver': receiver, 
             'amount': float(amount), 'timestamp': time.time(), 'signature': signature
         })
-        return True, "Pending mein hai"
+        return True, "Transaction success wait for next mined block"
 
         # 2. Bhejne wale ka balance check karna
         current_balance = self.get_balance(sender)
         if current_balance < float(amount):
-            return False, "Balance kam hai bhai!"
+            return False, "Low Balance!"
 
         # 3. Agar balance sahi hai, tabhi transaction add karna
         self.pending_transactions.append({
@@ -141,5 +141,6 @@ class KaalChain:
             self.add_transaction("KAAL_NETWORK", miner_address, 40, "NETWORK_SIG")
         
         return self.create_block(proof, pichla_hash)                
+
 
 
