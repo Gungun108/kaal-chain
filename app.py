@@ -1,65 +1,65 @@
 from flask import Flask, jsonify, render_template, request
-from blockchain import KaalChain
+from blockchain import KaalChain # Blockchain file se dimag uthana
 import os
 
-# Flask app initialization
+# Server ko shuru karna aur blockchain ko loading par lagana
 app = Flask(__name__)
 kaal_chain = KaalChain()
 
 @app.route('/')
 def index():
-    """Main Wallet Page load karne ke liye"""
+    # Pehla page jo wallet kholte hi dikhega
     return render_template('index.html')
 
 @app.route('/get_info', methods=['POST'])
 def get_info():
-    """Wallet ka balance aur last block ka proof lene ke liye"""
+    # Wallet se address mangwana
     data = request.get_json()
-    addr = data.get('address')
-    if not addr:
-        return jsonify({'error': 'Address missing'}), 400
+    pata = data.get('address')
     
+    if not pata:
+        return jsonify({'error': 'Address gayab hai'}), 400
+    
+    # Balance aur mining ke liye zaruri data wapas bhejna
     return jsonify({
-        'balance': kaal_chain.get_balance(addr),
+        'balance': kaal_chain.get_balance(pata), # Naya balance
         'last_proof': kaal_chain.chain[-1]['proof'] if kaal_chain.chain else 100,
         'difficulty': kaal_chain.difficulty
     }), 200
 
 @app.route('/get_stats')
 def get_stats():
-    """Poore blockchain ki summary aur supply check karne ke liye"""
+    # Poori chain aur supply ka hisaab bhejna
     return jsonify({
         'blocks': len(kaal_chain.chain),
-        'chain': kaal_chain.chain[::-1], # Latest blocks upar dikhane ke liye
+        'chain': kaal_chain.chain[::-1], # Latest transactions sabse upar dikhane ke liye
         'total_supply': sum(b.get('reward', 0) for b in kaal_chain.chain)
     })
-
 @app.route('/add_tx', methods=['POST'])
 def add_tx():
-    """Naya transaction add karne ke liye"""
+    # Nayi transaction ko kacchi list mein dalne ke liye
     data = request.get_json()
-    # Transaction logic (sender, receiver, amount, signature)
-    success, msg = kaal_chain.add_transaction(
-        data.get('sender'), 
-        data.get('receiver'), 
-        data.get('amount'), 
-        data.get('signature')
-    )
-    return jsonify({'message': 'Success' if success else f'Failed: {msg}'}), 200 if success else 400
+    success, msg = kaal_chain.add_transaction(data.get('sender'), data.get('receiver'), data.get('amount'), data.get('signature'))
+    return jsonify({'message': msg}), 200 if success else 400
+
+@app.route('/explorer')
+def explorer():
+    return render_template('explorer.html')
 
 @app.route('/mine', methods=['POST'])
 def mine():
-    """Mining success hone par naya block banane ke liye"""
+    # Mining ka data (Address aur Proof) mangwana
     v = request.get_json()
-    addr = v.get('address')
-    proof = v.get('proof')
+    pata = v.get('address')
+    saboot = v.get('proof')
     
-    if addr and proof:
-        kaal_chain.mine_block(addr, proof)
-        return jsonify({'message': 'Mined!'}), 200
-    return jsonify({'message': 'Invalid data'}), 400
+    if pata and saboot:
+        # Blockchain mein naya block aur 40 KAAL reward jodna
+        kaal_chain.mine_block(pata, saboot)
+        return jsonify({'message': 'Mubarak ho! Mining Safal rhi'}), 200
+    return jsonify({'message': 'Data galat hai'}), 400
 
 if __name__ == '__main__':
-    # Render ke environment variable se port uthana
+    # Render ke liye port set karna, varna local pe 5000 chalega
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
