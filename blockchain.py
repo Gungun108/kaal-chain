@@ -42,6 +42,17 @@ class KaalChain:
                 if tx['sender'] == address: bal -= float(tx['amount'])
                 if tx['receiver'] == address: bal += float(tx['amount'])
         return round(bal, 2)
+
+    def add_transaction(self, sender, receiver, amount, signature):
+        # Transaction ko pending list mein daalne ke liye
+        self.pending_transactions.append({
+            'sender': sender,
+            'receiver': receiver,
+            'amount': float(amount),
+            'timestamp': time.time(),
+            'signature': signature
+        })
+        return True, "Success"
     
     def load_chain_from_db(self):
         try:
@@ -74,7 +85,7 @@ class KaalChain:
 
     def mine_block(self, miner_address, proof):
         last_hash = self.chain[-1]['hash'] if self.chain else '0'
-        # Network signature default set karo
+        # Yeh line 'add_transaction' ko call karti hai
         self.add_transaction("KAAL_NETWORK", miner_address, 51, "NETWORK_SIG")
         return self.create_block(proof, last_hash)
 
