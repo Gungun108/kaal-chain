@@ -20,7 +20,9 @@ def get_info():
     if not pata:
         return jsonify({'error': 'Address gayab hai'}), 400
     
-    # Balance aur mining ke liye zaruri data wapas bhejna
+    # Har refresh par balance ko fresh load karna zaruri hai
+    kaal_chain.load_chain_from_db() 
+    
     return jsonify({
         'balance': kaal_chain.get_balance(pata), # Naya balance
         'last_proof': kaal_chain.chain[-1]['proof'] if kaal_chain.chain else 100,
@@ -50,7 +52,12 @@ def get_stats():
 def add_tx():
     # Nayi transaction ko kacchi list mein dalne ke liye
     data = request.get_json()
-    success, msg = kaal_chain.add_transaction(data.get('sender'), data.get('receiver'), data.get('amount'), data.get('signature'))
+    success, msg = kaal_chain.add_transaction(
+        data.get('sender'), 
+        data.get('receiver'), 
+        data.get('amount'), 
+        data.get('signature')
+    )
     return jsonify({'message': msg}), 200 if success else 400
 
 @app.route('/explorer')
@@ -58,21 +65,22 @@ def explorer():
     return render_template('explorer.html')
 
 @app.route('/mine', methods=['POST'])
-@app.route('/mine', methods=['POST'])
 def mine():
     data = request.get_json()
     proof = data.get('proof')
+    pata = data.get('address')
+    
+    if not pata or not proof:
+        return jsonify({'message': 'Data galat hai'}), 400
     
     # Agar ye proof pichle block ka hi hai toh reject karo
     if kaal_chain.chain and proof == kaal_chain.chain[-1]['proof']:
         return jsonify({'message': 'Purana proof hai bhai'}), 400
         
-    kaal_chain.mine_block(data.get('address'), proof)
+    kaal_chain.mine_block(pata, proof)
     return jsonify({'message': 'Mined'}), 200
-    return jsonify({'message': 'Data galat hai'}), 400
 
 if __name__ == '__main__':
-    # Render ke liye port set karna, varna local pe 5000 chalega
+    # Render ke liye port set karna
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
-
