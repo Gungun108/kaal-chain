@@ -136,6 +136,11 @@
     </div>
 
     <div id="sideMenu" class="side-menu">
+        <div id="sideMenu" class="side-menu">
+    <button class="menu-item" style="background:#eee; color:#333; text-align:center;" onclick="toggleMenu()">✖ CLOSE MENU</button>
+    
+    <button class="menu-item" onclick="toggleMenu(); openModal('sendModal')">📤 Send KAAL</button>
+    </div>
         <button class="menu-item" onclick="toggleMenu(); openModal('sendModal')">📤 Send KAAL</button>
         <button class="menu-item" onclick="toggleMenu(); openModal('recModal')">📥 Receive KAAL</button>
         <button class="menu-item" onclick="toggleMenu(); openModal('impModal')">🔑 Import Wallet</button>
@@ -397,5 +402,6 @@
 }
     </script>
 </body>
+
 
 
