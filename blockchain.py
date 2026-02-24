@@ -103,13 +103,22 @@ class KaalChain:
         return round(bal, 2)
 
     def add_transaction(self, sender, receiver, amount, signature):
-        # 1. Network Rewards ko bina check ke allow karna
-        if sender == "KAAL_NETWORK":
-            self.pending_transactions.append({
-                'sender': sender, 'receiver': receiver, 
-                'amount': float(amount), 'timestamp': time.time(), 'signature': signature
-            })
-            return True, "Reward Added"
+        # 1. Double Entry Check: Agar wahi transaction pehle se pending hai toh reject karo
+        for tx in self.pending_transactions:
+            if tx['signature'] == signature:
+                return False, "Double transaction pakdi gayi!"
+
+        # 2. Balance Check (Jo pehle kiya tha)
+        current_balance = self.get_balance(sender)
+        if sender != "KAAL_NETWORK" and current_balance < float(amount):
+            return False, "Balance kam hai!"
+
+        # Baaki ka purana code...
+        self.pending_transactions.append({
+            'sender': sender, 'receiver': receiver, 
+            'amount': float(amount), 'timestamp': time.time(), 'signature': signature
+        })
+        return True, "Pending mein hai"
 
         # 2. Bhejne wale ka balance check karna
         current_balance = self.get_balance(sender)
@@ -132,4 +141,5 @@ class KaalChain:
             self.add_transaction("KAAL_NETWORK", miner_address, 40, "NETWORK_SIG")
         
         return self.create_block(proof, pichla_hash)                
+
 
