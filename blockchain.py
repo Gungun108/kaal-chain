@@ -103,17 +103,25 @@ class KaalChain:
         return round(bal, 2)
 
     def add_transaction(self, sender, receiver, amount, signature):
-        # Nayi transaction ki kacchi entry banana
-        naya_tx = {
-            'sender': sender,
-            'receiver': receiver,
-            'amount': float(amount),
-            'timestamp': time.time(),
-            'signature': signature
-        }
-        # Is entry ko pending list mein daal dena
-        self.pending_transactions.append(naya_tx)
-        return True, "Success"
+        # 1. Network Rewards ko bina check ke allow karna
+        if sender == "KAAL_NETWORK":
+            self.pending_transactions.append({
+                'sender': sender, 'receiver': receiver, 
+                'amount': float(amount), 'timestamp': time.time(), 'signature': signature
+            })
+            return True, "Reward Added"
+
+        # 2. Bhejne wale ka balance check karna
+        current_balance = self.get_balance(sender)
+        if current_balance < float(amount):
+            return False, "Balance kam hai bhai!"
+
+        # 3. Agar balance sahi hai, tabhi transaction add karna
+        self.pending_transactions.append({
+            'sender': sender, 'receiver': receiver, 
+            'amount': float(amount), 'timestamp': time.time(), 'signature': signature
+        })
+        return True, "Transaction Pending"
 
     def mine_block(self, miner_address, proof):
         pichla_hash = self.chain[-1]['hash'] if self.chain else '0'
@@ -124,3 +132,4 @@ class KaalChain:
             self.add_transaction("KAAL_NETWORK", miner_address, 40, "NETWORK_SIG")
         
         return self.create_block(proof, pichla_hash)                
+
