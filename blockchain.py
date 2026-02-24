@@ -35,7 +35,7 @@ class KaalChain:
             print(f"❌ DB Error: {e}")
             self.create_genesis_block()
 
-def get_balance(self, address):
+    def get_balance(self, address):
         bal = 0
         for block in self.chain:
             for tx in block.get('transactions', []):
@@ -74,6 +74,8 @@ def get_balance(self, address):
 
     def mine_block(self, miner_address, proof):
         last_hash = self.chain[-1]['hash'] if self.chain else '0'
-        self.pending_transactions.append({'sender': "KAAL_NETWORK", 'receiver': miner_address, 'amount': 51, 'timestamp': time.time()})
+        # Network signature default set karo
+        self.add_transaction("KAAL_NETWORK", miner_address, 51, "NETWORK_SIG")
         return self.create_block(proof, last_hash)
+
 
