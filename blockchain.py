@@ -35,6 +35,14 @@ class KaalChain:
             print(f"❌ DB Error: {e}")
             self.create_genesis_block()
 
+def get_balance(self, address):
+        bal = 0
+        for block in self.chain:
+            for tx in block.get('transactions', []):
+                if tx['sender'] == address: bal -= float(tx['amount'])
+                if tx['receiver'] == address: bal += float(tx['amount'])
+        return round(bal, 2)
+    
     def load_chain_from_db(self):
         try:
             data = list(self.collection.find({}, {'_id': 0}).sort("index", 1))
@@ -68,3 +76,4 @@ class KaalChain:
         last_hash = self.chain[-1]['hash'] if self.chain else '0'
         self.pending_transactions.append({'sender': "KAAL_NETWORK", 'receiver': miner_address, 'amount': 51, 'timestamp': time.time()})
         return self.create_block(proof, last_hash)
+
