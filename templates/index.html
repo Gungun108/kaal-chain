@@ -381,19 +381,34 @@
         }
 
         async function sendTx() {
-            const to = document.getElementById('to').value;
-            const amt = document.getElementById('amt').value;
-            if (!to || !amt) return alert("Pata ya Amount bhulo mat!");
+    const btn = document.querySelector("#sendModal .btn");
+    const to = document.getElementById('to').value;
+    const amt = document.getElementById('amt').value;
 
-            const res = await fetch('/add_tx', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sender: pub, receiver: to, amount: amt, signature: priv }) // Abhi ke liye priv key hi sign hai
-            });
-            const msg = await res.json();
-            alert(msg.message);
-            closeModal('sendModal');
-            sync();
-        }
+    if(!to || !amt) return alert("Details bharo!");
+
+    // Button ko disable kar do taaki double click na ho
+    btn.disabled = true;
+    btn.innerText = "Sending...";
+
+    try {
+        const res = await fetch('/add_tx', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ sender: pub, receiver: to, amount: amt, signature: priv })
+        });
+        const data = await res.json();
+        alert(data.message);
+        closeModal('sendModal');
+        sync();
+    } catch(e) {
+        alert("Server error!");
+    } finally {
+        // Kaam khatam hone par button wapas sahi karo
+        btn.disabled = false;
+        btn.innerText = "Confirm & Send";
+    }
+}
     </script>
 </body>
+
