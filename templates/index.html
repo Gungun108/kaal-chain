@@ -125,23 +125,24 @@
 
         async function sync() {
             try {
-                const info = await fetch('/get_info', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({address: pub}) }).then(r => r.json());
-                document.getElementById('bal').innerText = info.balance.toFixed(2);
-                window.last_proof = info.last_proof || 100;
-                window.diff = info.difficulty || 2;
-
-                const stats = await fetch('/get_stats').then(r => r.json());
-                let html = '';
-                stats.chain.forEach(b => b.transactions.forEach(tx => {
-                    if (tx.sender === pub || tx.receiver === pub) {
-                        let isIN = tx.receiver === pub;
-                        html += `<div class="history-item">
-                            <div><b>${tx.sender === "KAAL_NETWORK" ? "⚡ Reward" : "Sent"}</b><br><small>${new Date(tx.timestamp*1000).toLocaleTimeString()}</small></div>
-                            <div style="color:${isIN ? 'green' : 'red'}; font-weight:bold;">${isIN ? '+' : '-'}${tx.amount}</div>
-                        </div>`;
-                    }
-                }));
-                document.getElementById('historyList').innerHTML = html || 'No activity yet.';
+                // Is hisse ko sync() function ke andar replace karo
+const stats = await fetch('/get_stats').then(r => r.json());
+let html = '';
+if (stats.chain) {
+    stats.chain.forEach(block => {
+        block.transactions.forEach(tx => {
+            if (tx.sender === pub || tx.receiver === pub) {
+                let isReward = tx.sender === "KAAL_NETWORK";
+                let isIN = tx.receiver === pub;
+                html += `<div class="history-item">
+                    <div><b>${isReward ? "⚡ Reward" : (isIN ? "📥 Received" : "📤 Sent")}</b><br><small>${new Date(tx.timestamp * 1000).toLocaleTimeString()}</small></div>
+                    <div style="color:${isIN ? 'green' : 'red'}; font-weight:bold;">${isIN ? '+' : '-'}${tx.amount}</div>
+                </div>`;
+            }
+        });
+    });
+}
+document.getElementById('historyList').innerHTML = html || '<p style="text-align:center;color:gray;">No transactions yet.</p>';
             } catch(e) {}
         }
 
@@ -152,19 +153,31 @@
         }
 
         async function mineLoop() {
-            let n = Math.floor(Math.random() * 100000);
-            while(mining) {
-                n++;
-                if(n % 400 === 0) await new Promise(r => setTimeout(r, 60));
-                const msg = (window.last_proof || 100) + "" + n;
-                const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg));
-                const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-                if(hex.startsWith('0'.repeat(window.diff || 2))) {
-                    await fetch('/mine', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({address: pub, proof: n}) });
-                    sync(); mining = false; toggleMining(); break;
-                }
+    let n = Math.floor(Math.random() * 1000000);
+    while(mining) { // Yeh check karega ki button stop hua ya nahi
+        n++;
+        // Mining ko thoda break dena zaruri hai stop check karne ke liye
+        if(n % 500 === 0) await new Promise(r => setTimeout(r, 10)); 
+        
+        const msg = (window.last_proof || 100) + "" + n;
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg));
+        const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+        
+        if(hex.startsWith('0'.repeat(window.diff || 2))) {
+            const res = await fetch('/mine', { 
+                method: 'POST', 
+                headers: {'Content-Type': 'application/json'}, 
+                body: JSON.stringify({address: pub, proof: n}) 
+            });
+            if(res.ok) {
+                mining = false; 
+                document.getElementById('mineBtn').innerText = "⚡ START MINING";
+                sync(); 
+                break; 
             }
         }
+    }
+}
 
         async function startScan() {
             if (!window.isSecureContext) return alert("HTTPS required!");
@@ -181,3 +194,4 @@
     </script>
 </body>
 </html>
+
