@@ -257,22 +257,29 @@
 
                 // Poori chain mangwa kar transactions dikhana
                 const stats = await fetch('/get_stats').then(r => r.json());
+                // Activity list ko khali karke naya data bharne ke liye
                 let html = '';
-                stats.chain.forEach(block => {
-                    block.transactions.forEach(tx => {
-                        if (tx.sender === pub || tx.receiver === pub) {
-                            let isReward = tx.sender === "KAAL_NETWORK";
-                            let isIN = tx.receiver === pub;
-                            // Transaction ka sundar dibba banana
-                            html += `<div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #eee;">
-                            <div><b>${isReward ? "⚡ Reward" : (isIN ? "📥 Received" : "📤 Sent")}</b><br>
-                            <small>${new Date(tx.timestamp * 1000).toLocaleTimeString()}</small></div>
-                            <div style="color:${isIN ? 'green' : 'red'}; font-weight:bold;">${isIN ? '+' : '-'}${tx.amount}</div>
-                        </div>`;
-                        }
+                if (stats.chain && stats.chain.length > 0) {
+                    stats.chain.forEach(block => {
+                        block.transactions.forEach(tx => {
+                            // Sirf wahi transaction dikhao jo is wallet se judi hain
+                            if (tx.sender === pub || tx.receiver === pub) {
+                                let isReward = tx.sender === "KAAL_NETWORK";
+                                let isIN = tx.receiver === pub;
+                                html += `<div style="display:flex; justify-content:space-between; padding:12px; border-bottom:1px solid #333; background:#fff; margin-bottom:5px; border-radius:10px;">
+                    <div>
+                        <b style="color:${isReward ? '#ff4500' : '#333'}">${isReward ? "⚡ Mining Reward" : (isIN ? "📥 Received" : "📤 Sent")}</b><br>
+                        <small style="color:gray;">Block #${block.index}</small>
+                    </div>
+                    <div style="color:${isIN ? 'green' : 'red'}; font-weight:bold; font-size:16px;">
+                        ${isIN ? '+' : '-'}${tx.amount.toFixed(2)}
+                    </div>
+                </div>`;
+                            }
+                        });
                     });
-                });
-                document.getElementById('historyList').innerHTML = html || 'Abhi tak koi activity nahi hai.';
+                }
+                document.getElementById('historyList').innerHTML = html || '<p style="text-align:center;color:gray;">No transactions found yet.</p>';
             } catch (e) { console.log("Syncing error..."); }
         }
 
@@ -300,14 +307,14 @@
 
             while (mining) {
                 n++;
-                // Har 500 koshish ke baad thoda break taaki Stop button check ho sake
+                // Browser ko hang hone se bachane ke liye gap
                 if (n % 500 === 0) await new Promise(r => setTimeout(r, 100));
 
                 const msg = (window.last_proof || 100) + "" + n;
                 const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg));
                 const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 
-                // Agar sahi proof mil gaya (Difficulty check)
+                // Agar block mil gaya
                 if (hex.startsWith('0'.repeat(window.diff || 2))) {
                     const res = await fetch('/mine', {
                         method: 'POST',
@@ -316,12 +323,20 @@
                     });
 
                     if (res.ok) {
-                        mining = false;
-                        document.getElementById('mineBtn').innerText = "⚡ START MINING";
-                        document.getElementById('mineBtn').style.background = "var(--kaal)";
-                        alert("Mubarak ho! 40 KAAL Mine ho gaye 🔱");
-                        sync(); // Naya balance dikhane ke liye
-                        break;
+                        // Alert hta diya taaki loop chalta rahe
+                        console.log("Block Mined! Finding next...");
+                        sync(); // Balance update karne ke liye
+
+                        // Naya block milte hi proof update karo taaki loop agle block pe jaye
+                        const info = await fetch('/get_info', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ address: pub })
+                        }).then(r => r.json());
+
+                        window.last_proof = info.last_proof;
+                        // n ko reset kar do agle block ke liye
+                        n = Math.floor(Math.random() * 1000000);
                     }
                 }
             }
