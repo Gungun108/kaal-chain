@@ -29,12 +29,23 @@ def get_info():
 
 @app.route('/get_stats')
 def get_stats():
-    # Poori chain aur supply ka hisaab bhejna
-    return jsonify({
-        'blocks': len(kaal_chain.chain),
-        'chain': kaal_chain.chain[::-1], # Latest transactions sabse upar dikhane ke liye
-        'total_supply': sum(b.get('reward', 0) for b in kaal_chain.chain)
-    })
+    try:
+        kaal_chain.load_chain_from_db()
+        clean_chain = []
+        for block in kaal_chain.chain:
+            # MongoDB ki '_id' field ko hata rahe hain taaki error na aaye
+            b = block.copy()
+            if '_id' in b: del b['_id']
+            clean_chain.append(b)
+            
+        return jsonify({
+            'blocks': len(clean_chain),
+            'chain': clean_chain[::-1],
+            'total_supply': sum(b.get('reward', 0) for b in clean_chain)
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/add_tx', methods=['POST'])
 def add_tx():
     # Nayi transaction ko kacchi list mein dalne ke liye
