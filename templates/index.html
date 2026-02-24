@@ -343,6 +343,7 @@
         }
 
         // Camera khol kar QR scan karna
+        // Camera khol kar QR scan karne wala sudhara hua function
         async function startScan() {
             if (!window.isSecureContext) return alert("Security Error: HTTPS zaruri hai!");
 
@@ -352,10 +353,11 @@
                 { fps: 10, qrbox: 250 },
                 (text) => {
                     document.getElementById('to').value = text;
-                    closeModal('sendModal');
-                    alert("Address Scan ho gaya!");
+                    // Alert hta diya taaki page refresh ya back na ho
+                    html5QrCode.stop();
+                    console.log("Address set: " + text);
                 }
-            ).catch(e => alert("Camera nahi khul raha!"));
+            ).catch(e => alert("Camera permission chahiye!"));
         }
 
         // Purani Private Key se wallet wapas lana
