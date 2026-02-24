@@ -1,84 +1,185 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>🔱 KAAL WALLET</title>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/elliptic/6.5.4/elliptic.min.js"></script>
+
     <style>
-        :root { --kaal: #ff4500; --bg: #f8f9fa; --card: #ffffff; --border: #e0e0e0; }
-        body { background: var(--bg); font-family: 'Segoe UI', sans-serif; margin: 0; padding: 10px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-        
-        /* Nav & Menu */
-        .top-nav { display: flex; justify-content: space-between; align-items: center; background: var(--card); padding: 10px 15px; border-radius: 15px; margin-bottom: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-        .menu-btn { font-size: 24px; background: none; border: none; cursor: pointer; }
-        .side-menu { position: fixed; top: 0; right: -280px; width: 250px; height: 100%; background: var(--card); box-shadow: -5px 0 15px rgba(0,0,0,0.1); transition: 0.3s; z-index: 1000; padding-top: 50px; }
-        .side-menu.active { right: 0; }
-        .menu-item { display: block; width: 100%; padding: 15px 20px; text-align: left; background: none; border: none; border-bottom: 1px solid var(--border); font-size: 14px; font-weight: bold; cursor: pointer; }
-        .menu-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; }
+        /* Colors aur basic setting */
+        :root {
+            --kaal: #ff4500;
+            --bg: #f8f9fa;
+            --card: #ffffff;
+            --border: #e0e0e0;
+        }
 
-        /* Wallet Card */
-        .card { background: var(--card); border-radius: 20px; padding: 15px; margin-bottom: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #ddd; text-align: center; }
-        .bal-text { font-size: 38px; font-weight: 900; color: var(--kaal); margin: 0; }
-        .addr-box { font-size: 9px; color: #008000; background: #eaffea; padding: 8px; border-radius: 8px; border: 1px dashed #4caf50; word-break: break-all; margin: 8px 0; cursor: pointer; }
-        .btn { background: var(--kaal); color: white; border: none; padding: 12px; border-radius: 10px; font-weight: bold; width: 100%; cursor: pointer; margin-top: 5px; }
-        
-        /* Activity Box */
-        .activity-section { flex-grow: 1; display: flex; flex-direction: column; background: var(--card); border-radius: 20px; border: 1px solid #ddd; padding: 15px; overflow: hidden; }
-        .history-container { flex-grow: 1; overflow-y: auto; }
-        .history-item { display: flex; justify-content: space-between; padding: 10px; background: #fff; border-radius: 10px; margin-bottom: 8px; border-left: 4px solid var(--kaal); font-size: 12px; border-bottom: 1px solid #eee; }
+        /* Body ko fix karna taaki page lamba na bhage */
+        body {
+            background: var(--bg);
+            font-family: 'Segoe UI', sans-serif;
+            margin: 0;
+            padding: 10px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
 
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; overflow-y: auto; }
-        input { width: 85%; padding: 12px; border: 1px solid #ccc; border-radius: 10px; margin-bottom: 10px; }
-        #reader { width: 100%; border-radius: 10px; margin-bottom: 10px; }
+        /* Card aur Navigation ka design */
+        .top-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--card);
+            padding: 10px 15px;
+            border-radius: 15px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: 20px;
+            padding: 15px;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+
+        /* Side Menu jo side se slide hokar aayega */
+        .side-menu {
+            position: fixed;
+            top: 0;
+            right: -280px;
+            width: 250px;
+            height: 100%;
+            background: var(--card);
+            box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
+            transition: 0.3s;
+            z-index: 1000;
+            padding-top: 50px;
+        }
+
+        .side-menu.active {
+            right: 0;
+        }
+
+        .menu-item {
+            display: block;
+            width: 100%;
+            padding: 15px 20px;
+            text-align: left;
+            background: none;
+            border: none;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        /* Activity box ko scrollable banana */
+        .activity-section {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--card);
+            border-radius: 20px;
+            border: 1px solid #ddd;
+            padding: 15px;
+            overflow: hidden;
+        }
+
+        .history-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+
+        /* Buttons ka style */
+        .btn {
+            background: var(--kaal);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 10px;
+            font-weight: bold;
+            width: 100%;
+            cursor: pointer;
+            margin-top: 5px;
+        }
+
+        /* Modals (Send/Receive ke popups) */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+        }
     </style>
 </head>
-<body>
 
+<body>
     <div class="top-nav">
-        <h2 style="margin:0; color:var(--kaal); font-size: 20px;">🔱 KAAL</h2>
-        <button class="menu-btn" onclick="toggleMenu()">☰</button>
+        <h2 style="margin:0; color:var(--kaal); font-size: 20px;">🔱 KAAL WALLET</h2>
+        <button style="font-size:24px; background:none; border:none;" onclick="toggleMenu()">☰</button>
     </div>
 
-    <div id="menuOverlay" class="menu-overlay" onclick="toggleMenu()"></div>
     <div id="sideMenu" class="side-menu">
         <button class="menu-item" onclick="toggleMenu(); openModal('sendModal')">📤 Send KAAL</button>
         <button class="menu-item" onclick="toggleMenu(); openModal('recModal')">📥 Receive KAAL</button>
         <button class="menu-item" onclick="toggleMenu(); openModal('impModal')">🔑 Import Wallet</button>
         <button class="menu-item" onclick="showKey()">👁️ View Private Key</button>
+        <button class="menu-item" style="color:var(--kaal);" onclick="window.location.href='/explorer'">🌐 Open
+            Explorer</button>
     </div>
 
     <div class="card">
-        <div id="bal" class="bal-text">0.00</div>
+        <div id="bal" style="font-size:38px; font-weight:900; color:var(--kaal); margin:0;">0.00</div>
         <div style="font-size:10px; color:gray;">KAAL COINS</div>
-        <div class="addr-box" id="addrDisp" onclick="copyText()">Loading Address...</div>
+        <div id="addrDisp"
+            style="font-size:9px; color:green; background:#eaffea; padding:8px; border-radius:8px; border:1px dashed #4caf50; word-break:break-all; margin:10px 0; cursor:pointer;"
+            onclick="copyAddr()">Loading Address...</div>
         <button class="btn" id="mineBtn" onclick="toggleMining()">⚡ START MINING</button>
     </div>
 
     <div class="activity-section">
-        <h4 style="margin:0 0 10px 0; border-bottom:1px solid #eee;">📜 Activity</h4>
-        <div id="historyList" class="history-container">Syncing...</div>
+        <h4 style="margin:0 0 10px 0; border-bottom:1px solid #eee;">📜 Recent Activity</h4>
+        <div id="historyList" class="history-container">Syncing Ledger...</div>
     </div>
-
     <div id="sendModal" class="modal">
-        <div class="card" style="width:85%; margin:30px auto;">
-            <h3>Send Funds</h3>
-            <div id="reader"></div>
+        <div class="card" style="width:85%; margin:30px auto; position:relative;">
+            <h3>Send KAAL</h3>
+            <div id="reader" style="width:100%; border-radius:10px; overflow:hidden; background:#000;"></div>
             <button class="btn" style="background:#444;" onclick="startScan()">📸 Open Camera</button>
-            <input type="text" id="to" placeholder="Receiver Address" style="margin-top:10px;">
-            <input type="number" id="amt" placeholder="Amount">
-            <button class="btn" onclick="sendTx()">Confirm Send</button>
-            <button class="btn" style="background:gray;" onclick="closeModal('sendModal')">Cancel</button>
+
+            <input type="text" id="to" placeholder="Receiver Address (KAAL...)"
+                style="width:85%; padding:12px; margin-top:10px; border-radius:10px; border:1px solid #ccc;">
+            <input type="number" id="amt" placeholder="Amount"
+                style="width:85%; padding:12px; margin-top:10px; border-radius:10px; border:1px solid #ccc;">
+
+            <button class="btn" onclick="sendTx()">Confirm & Send</button>
+            <button class="btn" style="background:gray;" onclick="closeModal('sendModal')">Close</button>
         </div>
     </div>
 
     <div id="recModal" class="modal">
         <div class="card" style="width:85%; margin:30px auto;">
-            <h3>Receive</h3>
-            <div id="qrcode" style="padding:10px; background:white; display:inline-block;"></div>
-            <p id="recAddr" class="addr-box"></p>
+            <h3>Your Address</h3>
+            <div id="qrcode" style="padding:15px; background:white; display:inline-block; border-radius:10px;"></div>
+            <p id="recAddr"
+                style="font-size:10px; color:green; background:#f0fff0; padding:10px; border-radius:8px; word-break:break-all;">
+            </p>
             <button class="btn" onclick="closeModal('recModal')">Close</button>
         </div>
     </div>
@@ -86,113 +187,196 @@
     <div id="impModal" class="modal">
         <div class="card" style="width:85%; margin:30px auto;">
             <h3>Restore Wallet</h3>
-            <input type="text" id="impKey" placeholder="Paste Private Key">
-            <button class="btn" onclick="importWallet()">Restore</button>
+            <p style="font-size:12px; color:red;">Warning: Purana wallet hamesha ke liye delete ho jayega!</p>
+            <input type="text" id="impKey" placeholder="Paste Private Key Here"
+                style="width:85%; padding:12px; border-radius:10px; border:1px solid #ccc;">
+            <button class="btn" onclick="importWallet()">Restore & Login</button>
             <button class="btn" style="background:gray;" onclick="closeModal('impModal')">Cancel</button>
         </div>
     </div>
 
     <script>
+        // Digital signatures ke liye cryptographic tools load karna
         const ec = new (elliptic.ec)('secp256k1');
         let mining = false, pub, priv, html5QrCode;
 
+        // Menu kholne aur band karne ka function
         function toggleMenu() {
             document.getElementById('sideMenu').classList.toggle('active');
-            const overlay = document.getElementById('menuOverlay');
-            overlay.style.display = overlay.style.display === 'block' ? 'none' : 'block';
         }
 
+        // Pop-up modals kholne aur band karne ke liye
         function openModal(id) { document.getElementById(id).style.display = 'block'; }
-        function closeModal(id) { 
-            document.getElementById(id).style.display = 'none'; 
-            if(html5QrCode) html5QrCode.stop().catch(()=>{}); 
+        function closeModal(id) {
+            document.getElementById(id).style.display = 'none';
+            if (html5QrCode) html5QrCode.stop().catch(() => { });
         }
 
+        // Wallet ki shuruat: Purana wallet load karna ya naya banana
         async function init() {
             pub = localStorage.getItem('kaal_pub');
             priv = localStorage.getItem('kaal_priv');
+
             if (!pub) {
+                // Nayi private aur public key generate karna
                 const key = ec.genKeyPair();
                 priv = key.getPrivate('hex');
+                // KAAL format mein address banana
                 pub = "KAAL" + ec.hash().update(key.getPublic('hex', true)).digest('hex').substring(0, 40).toUpperCase();
-                localStorage.setItem('kaal_pub', pub); localStorage.setItem('kaal_priv', priv);
+                localStorage.setItem('kaal_pub', pub);
+                localStorage.setItem('kaal_priv', priv);
             }
+
+            // Screen par address dikhana
             document.getElementById('addrDisp').innerText = pub;
             document.getElementById('recAddr').innerText = pub;
+
+            // Address ka QR code banana
             new QRCode(document.getElementById("qrcode"), { text: pub, width: 140, height: 140 });
-            sync(); setInterval(sync, 10000);
+
+            // Server se data khinchne ka kaam shuru
+            sync();
+            setInterval(sync, 10000); // Har 10 second mein auto-update
         }
 
+        // Server se balance aur activity khinchne wala function
         async function sync() {
             try {
-                // Is hisse ko sync() function ke andar replace karo
-const stats = await fetch('/get_stats').then(r => r.json());
-let html = '';
-if (stats.chain) {
-    stats.chain.forEach(block => {
-        block.transactions.forEach(tx => {
-            if (tx.sender === pub || tx.receiver === pub) {
-                let isReward = tx.sender === "KAAL_NETWORK";
-                let isIN = tx.receiver === pub;
-                html += `<div class="history-item">
-                    <div><b>${isReward ? "⚡ Reward" : (isIN ? "📥 Received" : "📤 Sent")}</b><br><small>${new Date(tx.timestamp * 1000).toLocaleTimeString()}</small></div>
-                    <div style="color:${isIN ? 'green' : 'red'}; font-weight:bold;">${isIN ? '+' : '-'}${tx.amount}</div>
-                </div>`;
-            }
-        });
-    });
-}
-document.getElementById('historyList').innerHTML = html || '<p style="text-align:center;color:gray;">No transactions yet.</p>';
-            } catch(e) {}
+                // Server se balance aur mining difficulty mangwana
+                const res = await fetch('/get_info', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ address: pub })
+                });
+                const info = await res.json();
+
+                // Screen par balance update karna
+                document.getElementById('bal').innerText = info.balance.toFixed(2);
+                window.last_proof = info.last_proof || 100;
+                window.diff = info.difficulty || 2;
+
+                // Poori chain mangwa kar transactions dikhana
+                const stats = await fetch('/get_stats').then(r => r.json());
+                let html = '';
+                stats.chain.forEach(block => {
+                    block.transactions.forEach(tx => {
+                        if (tx.sender === pub || tx.receiver === pub) {
+                            let isReward = tx.sender === "KAAL_NETWORK";
+                            let isIN = tx.receiver === pub;
+                            // Transaction ka sundar dibba banana
+                            html += `<div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #eee;">
+                            <div><b>${isReward ? "⚡ Reward" : (isIN ? "📥 Received" : "📤 Sent")}</b><br>
+                            <small>${new Date(tx.timestamp * 1000).toLocaleTimeString()}</small></div>
+                            <div style="color:${isIN ? 'green' : 'red'}; font-weight:bold;">${isIN ? '+' : '-'}${tx.amount}</div>
+                        </div>`;
+                        }
+                    });
+                });
+                document.getElementById('historyList').innerHTML = html || 'Abhi tak koi activity nahi hai.';
+            } catch (e) { console.log("Syncing error..."); }
         }
 
+        // Address copy karne ke liye
+        function copyAddr() {
+            navigator.clipboard.writeText(pub);
+            alert("Address copy ho gaya!");
+        }
+
+        window.onload = init;
+
+        // Mining shuru aur band karne ka switch
         async function toggleMining() {
             mining = !mining;
-            document.getElementById('mineBtn').innerText = mining ? "🛑 STOP" : "⚡ START MINING";
-            if(mining) mineLoop();
+            const btn = document.getElementById('mineBtn');
+            btn.innerText = mining ? "🛑 STOP MINING" : "⚡ START MINING";
+            btn.style.background = mining ? "#333" : "var(--kaal)";
+
+            if (mining) mineLoop(); // Agar ON hai toh loop shuru karo
         }
 
+        // Asli Mining ka kaam yahan hota hai
         async function mineLoop() {
-    let n = Math.floor(Math.random() * 1000000);
-    while(mining) {
-        n++;
-        // Har 100 iterations ke baad 50ms ka gap
-        // Isse browser ko Stop button check karne ka time milega
-        if(n % 100 === 0) await new Promise(r => setTimeout(r, 50)); 
-        
-        const msg = (window.last_proof || 100) + "" + n;
-        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg));
-        const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-        
-        if(hex.startsWith('0'.repeat(window.diff || 2))) {
-            await fetch('/mine', { 
-                method: 'POST', 
-                headers: {'Content-Type': 'application/json'}, 
-                body: JSON.stringify({address: pub, proof: n}) 
-            });
-            mining = false; // Block milte hi loop band
-            document.getElementById('mineBtn').innerText = "⚡ START MINING";
-            sync(); 
-            break; 
+            let n = Math.floor(Math.random() * 1000000);
+
+            while (mining) {
+                n++;
+                // Har 500 koshish ke baad thoda break taaki Stop button check ho sake
+                if (n % 500 === 0) await new Promise(r => setTimeout(r, 100));
+
+                const msg = (window.last_proof || 100) + "" + n;
+                const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg));
+                const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+                // Agar sahi proof mil gaya (Difficulty check)
+                if (hex.startsWith('0'.repeat(window.diff || 2))) {
+                    const res = await fetch('/mine', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ address: pub, proof: n })
+                    });
+
+                    if (res.ok) {
+                        mining = false;
+                        document.getElementById('mineBtn').innerText = "⚡ START MINING";
+                        document.getElementById('mineBtn').style.background = "var(--kaal)";
+                        alert("Mubarak ho! 40 KAAL Mine ho gaye 🔱");
+                        sync(); // Naya balance dikhane ke liye
+                        break;
+                    }
+                }
+            }
         }
-    }
-}
 
-
+        // Camera khol kar QR scan karna
         async function startScan() {
-            if (!window.isSecureContext) return alert("HTTPS required!");
+            if (!window.isSecureContext) return alert("Security Error: HTTPS zaruri hai!");
+
             html5QrCode = new Html5Qrcode("reader");
-            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (text) => {
-                document.getElementById('to').value = text;
-                html5QrCode.stop();
-            }).catch(e => alert("Camera Error"));
+            html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: 250 },
+                (text) => {
+                    document.getElementById('to').value = text;
+                    closeModal('sendModal');
+                    alert("Address Scan ho gaya!");
+                }
+            ).catch(e => alert("Camera nahi khul raha!"));
         }
 
-        function showKey() { toggleMenu(); prompt("Your Private Key (Keep it safe!):", priv); }
-        function copyText() { navigator.clipboard.writeText(pub); console.log("Copied"); }
-        window.onload = init;
+        // Purani Private Key se wallet wapas lana
+        function importWallet() {
+            const key = document.getElementById('impKey').value.trim();
+            if (key.length < 60) return alert("Galat Key hai!");
+
+            try {
+                const pair = ec.keyFromPrivate(key);
+                const newPub = "KAAL" + ec.hash().update(pair.getPublic('hex', true)).digest('hex').substring(0, 40).toUpperCase();
+
+                localStorage.setItem('kaal_pub', newPub);
+                localStorage.setItem('kaal_priv', key);
+                location.reload(); // Page refresh karke naya wallet load karna
+            } catch (e) { alert("Import fail ho gaya!"); }
+        }
+
+        // Private Key dekhne ke liye (Backup)
+        function showKey() {
+            prompt("Aapki Private Key (Ise kisi ko na dein!):", priv);
+        }
+
+        async function sendTx() {
+            const to = document.getElementById('to').value;
+            const amt = document.getElementById('amt').value;
+            if (!to || !amt) return alert("Pata ya Amount bhulo mat!");
+
+            const res = await fetch('/add_tx', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sender: pub, receiver: to, amount: amt, signature: priv }) // Abhi ke liye priv key hi sign hai
+            });
+            const msg = await res.json();
+            alert(msg.message);
+            closeModal('sendModal');
+            sync();
+        }
     </script>
 </body>
-</html>
-
-
