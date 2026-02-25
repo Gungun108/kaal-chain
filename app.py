@@ -32,17 +32,18 @@ def get_info():
 @app.route('/get_stats')
 def get_stats():
     try:
+        # Har baar fresh data load karo
         kaal_chain.load_chain_from_db()
+        
         clean_chain = []
         for block in kaal_chain.chain:
-            # MongoDB ki '_id' field ko hata rahe hain taaki error na aaye
             b = block.copy()
             if '_id' in b: del b['_id']
             clean_chain.append(b)
             
         return jsonify({
             'blocks': len(clean_chain),
-            'chain': clean_chain[::-1],
+            'chain': clean_chain[::-1], # Naya block upar
             'total_supply': sum(b.get('reward', 0) for b in clean_chain)
         })
     except Exception as e:
@@ -84,3 +85,4 @@ if __name__ == '__main__':
     # Render ke liye port set karna
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
