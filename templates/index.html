@@ -101,7 +101,7 @@
 
         async function sync() {
     try {
-        // 1. Server se fresh data mangwana
+        // 1. Server se data mangwana
         const res = await fetch('/get_info', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -109,19 +109,18 @@
         });
         const info = await res.json();
 
-        // 2. Balance update (Yahan fix hai: parseFloat use karke numeric value set kar rahe hain)
-        if (info.balance !== undefined) {
+        // 2. Safe Update: Balance tabhi badlo jab info sahi mile
+        if (info && info.balance !== undefined) {
             document.getElementById('bal').innerText = parseFloat(info.balance).toFixed(2);
+            window.last_proof = info.last_proof || 100;
+            window.diff = info.difficulty || 3;
         }
-        
-        window.last_proof = info.last_proof || 100;
-        window.diff = info.difficulty || 3;
 
-        // 3. Recent Activity Section (Yahan fix hai: Pehle list ko khali kar rahe hain)
+        // 3. History Clean & Update
         const statsRes = await fetch('/get_stats');
         const stats = await statsRes.json();
         
-        let html = ''; // Nayi khali string se shuruwat
+        let html = '';
         if (stats.chain && stats.chain.length > 0) {
             stats.chain.forEach(block => {
                 block.transactions.forEach(tx => {
@@ -142,14 +141,39 @@
                 });
             });
         }
-        // Purana sara kachra saaf karke naya HTML dalo
+        // Purana data saaf karke naya data set karo
         document.getElementById('historyList').innerHTML = html || '<p style="text-align:center;color:gray;">No transactions found.</p>';
         
     } catch (e) { 
-        console.log("Sync error: Database Refresh ho raha hai..."); 
+        console.log("Network Slow: Purana data hi dikha rahe hain..."); 
     }
 }
 
+async function mineLoop() {
+    let n = Math.floor(Math.random() * 1000000);
+    while(mining) {
+        n++;
+        // Device sync break
+        if(n % 1000 === 0) await new Promise(r => setTimeout(r, 100)); 
+        
+        const msg = (window.last_proof || 100) + "" + n;
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg));
+        const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+        
+        if(hex.startsWith('0'.repeat(window.diff || 3))) {
+            const res = await fetch('/mine', { 
+                method: 'POST', 
+                headers: {'Content-Type': 'application/json'}, 
+                body: JSON.stringify({address: pub, proof: n}) 
+            });
+            if(res.ok) { 
+                // Block mine hone ke baad turant sync
+                await sync(); 
+                n = Math.floor(Math.random() * 1000000); 
+            }
+        }
+    }
+}
         async function toggleMining() {
             mining = !mining;
             const btn = document.getElementById('mineBtn');
@@ -158,21 +182,7 @@
             if (mining) mineLoop();
         }
 
-        async function mineLoop() {
-            let n = Math.floor(Math.random() * 1000000);
-            while(mining) {
-                n++;
-                if(n % 1000 === 0) await new Promise(r => setTimeout(r, 100)); 
-                const msg = (window.last_proof || 100) + "" + n;
-                const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg));
-                const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-                
-                if(hex.startsWith('0'.repeat(window.diff || 3))) {
-                    const res = await fetch('/mine', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({address: pub, proof: n}) });
-                    if(res.ok) { sync(); n = Math.floor(Math.random() * 1000000); }
-                }
-            }
-        }
+        
 
         async function startScan() {
             html5QrCode = new Html5Qrcode("reader");
@@ -212,4 +222,5 @@
     </script>
 </body>
 </html>
+
 
