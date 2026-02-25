@@ -100,30 +100,55 @@
         }
 
         async function sync() {
-            try {
-                const res = await fetch('/get_info', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ address: pub }) });
-                const info = await res.json();
-                document.getElementById('bal').innerText = info.balance.toFixed(2);
-                window.last_proof = info.last_proof || 100;
-                window.diff = info.difficulty || 3;
+    try {
+        // 1. Server se fresh data mangwana
+        const res = await fetch('/get_info', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ address: pub })
+        });
+        const info = await res.json();
 
-                const stats = await fetch('/get_stats').then(r => r.json());
-                let html = '';
-                stats.chain.forEach(block => {
-                    block.transactions.forEach(tx => {
-                        if (tx.sender === pub || tx.receiver === pub) {
-                            let isReward = tx.sender === "KAAL_NETWORK";
-                            let isIN = tx.receiver === pub;
-                            html += `<div style="display:flex; justify-content:space-between; padding:12px; border-bottom:1px solid #333; background:#fff; margin-bottom:5px; border-radius:10px;">
-                                <div><b style="color:${isReward ? '#ff4500' : '#333'}">${isReward ? "⚡ Mining Reward" : (isIN ? "📥 Received" : "📤 Sent")}</b><br><small style="color:gray;">Block #${block.index}</small></div>
-                                <div style="color:${isIN ? 'green' : 'red'}; font-weight:bold;">${isIN ? '+' : '-'}${tx.amount.toFixed(2)}</div>
-                            </div>`;
-                        }
-                    });
-                });
-                document.getElementById('historyList').innerHTML = html || '<p style="text-align:center;color:gray;">No transactions found yet.</p>';
-            } catch (e) { console.log("Sync error"); }
+        // 2. Balance update (Yahan fix hai: parseFloat use karke numeric value set kar rahe hain)
+        if (info.balance !== undefined) {
+            document.getElementById('bal').innerText = parseFloat(info.balance).toFixed(2);
         }
+        
+        window.last_proof = info.last_proof || 100;
+        window.diff = info.difficulty || 3;
+
+        // 3. Recent Activity Section (Yahan fix hai: Pehle list ko khali kar rahe hain)
+        const statsRes = await fetch('/get_stats');
+        const stats = await statsRes.json();
+        
+        let html = ''; // Nayi khali string se shuruwat
+        if (stats.chain && stats.chain.length > 0) {
+            stats.chain.forEach(block => {
+                block.transactions.forEach(tx => {
+                    if (tx.sender === pub || tx.receiver === pub) {
+                        let isReward = tx.sender === "KAAL_NETWORK";
+                        let isIN = tx.receiver === pub;
+                        html += `
+                        <div style="display:flex; justify-content:space-between; padding:12px; border-bottom:1px solid #eee; background:#fff; margin-bottom:5px; border-radius:10px;">
+                            <div>
+                                <b style="color:${isReward ? '#ff4500' : '#333'}">${isReward ? "⚡ Reward" : (isIN ? "📥 Received" : "📤 Sent")}</b><br>
+                                <small style="color:gray;">Block #${block.index}</small>
+                            </div>
+                            <div style="color:${isIN ? 'green' : 'red'}; font-weight:bold;">
+                                ${isIN ? '+' : '-'}${parseFloat(tx.amount).toFixed(2)}
+                            </div>
+                        </div>`;
+                    }
+                });
+            });
+        }
+        // Purana sara kachra saaf karke naya HTML dalo
+        document.getElementById('historyList').innerHTML = html || '<p style="text-align:center;color:gray;">No transactions found.</p>';
+        
+    } catch (e) { 
+        console.log("Sync error: Database Refresh ho raha hai..."); 
+    }
+}
 
         async function toggleMining() {
             mining = !mining;
@@ -187,3 +212,4 @@
     </script>
 </body>
 </html>
+
