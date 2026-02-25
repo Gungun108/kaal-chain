@@ -10,7 +10,7 @@ class KaalChain:
     def __init__(self):
         self.chain = []
         self.pending_transactions = []
-        self.difficulty = 3 # 3 se shuruwat
+        self.difficulty = 3 #
         
         mongo_uri = os.environ.get("MONGO_URI")
         try:
@@ -33,18 +33,13 @@ class KaalChain:
 
     def load_chain_from_db(self):
         try:
-            # 1. Pehle database se data ek temporary variable mein lo
+            # Atomic Load: Pehle data variable mein lo, fir memory update karo
             db_data = list(self.collection.find({}, {'_id': 0}).sort("index", 1))
-            
-            if db_data:
-                # 2. Jab data mil jaye, tabhi purani chain ko badlo
-                # Isse balance kabhi 0 nahi dikhayega beech mein
+            if db_data and len(db_data) > 0:
                 self.chain = db_data
                 self.difficulty = 3 + (len(self.chain) // 10000) * 0.5
-            else:
-                # Agar DB bilkul khali hai, tabhi genesis banao
-                if not self.chain:
-                    self.create_genesis_block()
+            elif not self.chain:
+                self.create_genesis_block()
         except Exception as e:
             print(f"Sync Error: {e}")
 
@@ -53,7 +48,6 @@ class KaalChain:
             self.create_block(proof=100, previous_hash='0')
 
     def create_block(self, proof, previous_hash):
-        # 10,000 blocks par 0.5 difficulty badhana
         self.difficulty = 3 + (len(self.chain) // 10000) * 0.5
         
         # Max Supply 51M logic
@@ -67,7 +61,7 @@ class KaalChain:
             'transactions': list(self.pending_transactions),
             'proof': proof,
             'previous_hash': previous_hash,
-            'reward': block_reward
+            'reward': block_reward #
         }
         
         encoded_block = json.dumps(block, sort_keys=True).encode()
@@ -77,18 +71,16 @@ class KaalChain:
         self.chain.append(block)
         
         try:
-            # Pura data refresh karne ke liye delete then insert
-            self.collection.delete_many({}) 
-            if self.chain: 
-                self.collection.insert_many(self.chain)
+            # FIX: Pura delete karne ke bajaye sirf naya block insert karo
+            self.collection.insert_one(block)
         except: 
             pass
         return block
 
     def get_balance(self, address):
+        if not self.chain: return 0.0
         bal = 0
         for block in self.chain:
-            # Reward logic mining se
             for tx in block.get('transactions', []):
                 if tx['sender'] == address: 
                     bal -= float(tx['amount'])
@@ -97,22 +89,16 @@ class KaalChain:
         return round(bal, 2)
 
     def add_transaction(self, sender, receiver, amount, signature):
-        # 1. Double Entry Check
+        # Double Entry Check
         for tx in self.pending_transactions:
             if tx['signature'] == signature:
                 return False, "Double transaction!"
 
-        # 2. Balance Check (Minus hone se rokne ke liye)
+        # Balance Check
         if sender != "KAAL_NETWORK":
             current_balance = self.get_balance(sender)
             if current_balance < float(amount):
                 return False, "Low Balance!"
-
-        self.pending_transactions.append({
-            'sender': sender, 'receiver': receiver, 
-            'amount': float(amount), 'timestamp': time.time(), 'signature': signature
-        })
-        return True, "Success"
 
         self.pending_transactions.append({
             'sender': sender, 
@@ -121,16 +107,16 @@ class KaalChain:
             'timestamp': time.time(), 
             'signature': signature
         })
-        return True, "Transaction success wait for next mined block"
+        return True, "Success"
 
     def mine_block(self, miner_address, proof):
+        # Naya block mine karne se pehle fresh sync
+        self.load_chain_from_db()
         pichla_hash = self.chain[-1]['hash'] if self.chain else '0'
         
         current_supply = sum(b.get('reward', 0) for b in self.chain)
         if current_supply + 40 <= 51000000:
-            self.add_transaction("KAAL_NETWORK", miner_address, 40, "NETWORK_SIG") # 40 KAAL reward
+            # 40 KAAL reward logic
+            self.add_transaction("KAAL_NETWORK", miner_address, 40, "NETWORK_SIG")
         
         return self.create_block(proof, pichla_hash)
-
-
-
