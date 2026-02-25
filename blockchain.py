@@ -33,13 +33,18 @@ class KaalChain:
 
     def load_chain_from_db(self):
         try:
-            # Local memory ko pehle poora khali karo taaki balance "uchle" nahi
-            self.chain = [] 
-            data = list(self.collection.find({}, {'_id': 0}).sort("index", 1))
-            if data:
-                self.chain = data
+            # 1. Pehle database se data ek temporary variable mein lo
+            db_data = list(self.collection.find({}, {'_id': 0}).sort("index", 1))
+            
+            if db_data:
+                # 2. Jab data mil jaye, tabhi purani chain ko badlo
+                # Isse balance kabhi 0 nahi dikhayega beech mein
+                self.chain = db_data
+                self.difficulty = 3 + (len(self.chain) // 10000) * 0.5
             else:
-                self.create_genesis_block()
+                # Agar DB bilkul khali hai, tabhi genesis banao
+                if not self.chain:
+                    self.create_genesis_block()
         except Exception as e:
             print(f"Sync Error: {e}")
 
@@ -126,5 +131,6 @@ class KaalChain:
             self.add_transaction("KAAL_NETWORK", miner_address, 40, "NETWORK_SIG") # 40 KAAL reward
         
         return self.create_block(proof, pichla_hash)
+
 
 
