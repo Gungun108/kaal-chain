@@ -70,15 +70,20 @@ def explorer():
 @app.route('/mine', methods=['POST'])
 def mine():
     data = request.get_json()
-    proof = data.get('proof')
     pata = data.get('address')
-    
+    proof = data.get('proof')
+
     if not pata or not proof:
-        return jsonify({'message': 'Data galat hai'}), 400
+        return jsonify({'message': 'Data miss hai'}), 400
+
+    # Block mine karo
+    kaal_chain.mine_block(pata, proof)
     
-    # Agar ye proof pichle block ka hi hai toh reject karo
-    if kaal_chain.chain and proof == kaal_chain.chain[-1]['proof']:
-        return jsonify({'message': 'Purana proof hai bhai'}), 400
+    # Mining ke turant baad balance fresh dikhane ke liye DB refresh zaruri hai
+    # Par humne load_chain ko "safe" bana diya hai, toh ab 0 nahi hoga
+    kaal_chain.load_chain_from_db() 
+
+    return jsonify({'message': 'Mined Success', 'new_balance': kaal_chain.get_balance(pata)}), 200
         
     kaal_chain.mine_block(pata, proof)
     return jsonify({'message': 'Mined'}), 200
@@ -87,5 +92,6 @@ if __name__ == '__main__':
     # Render ke liye port set karna
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
