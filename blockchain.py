@@ -90,16 +90,22 @@ class KaalChain:
         return round(bal, 2)
 
     def add_transaction(self, sender, receiver, amount, signature):
-        # Double Entry Check
+        # 1. Double Entry Check
         for tx in self.pending_transactions:
             if tx['signature'] == signature:
-                return False, "Double transaction pakdi gayi!"
+                return False, "Double transaction!"
 
-        # Balance Check
+        # 2. Balance Check (Minus hone se rokne ke liye)
         if sender != "KAAL_NETWORK":
             current_balance = self.get_balance(sender)
             if current_balance < float(amount):
                 return False, "Low Balance!"
+
+        self.pending_transactions.append({
+            'sender': sender, 'receiver': receiver, 
+            'amount': float(amount), 'timestamp': time.time(), 'signature': signature
+        })
+        return True, "Success"
 
         self.pending_transactions.append({
             'sender': sender, 
@@ -118,3 +124,4 @@ class KaalChain:
             self.add_transaction("KAAL_NETWORK", miner_address, 40, "NETWORK_SIG") # 40 KAAL reward
         
         return self.create_block(proof, pichla_hash)
+
