@@ -38,6 +38,7 @@ def get_stats():
         clean_chain = []
         for block in kaal_chain.chain:
             b = block.copy()
+            # MongoDB ki '_id' field ko hata rahe hain taaki error na aaye
             if '_id' in b: del b['_id']
             clean_chain.append(b)
             
@@ -79,19 +80,15 @@ def mine():
     # Block mine karo
     kaal_chain.mine_block(pata, proof)
     
-    # Mining ke turant baad balance fresh dikhane ke liye DB refresh zaruri hai
-    # Par humne load_chain ko "safe" bana diya hai, toh ab 0 nahi hoga
+    # Fresh data load karo taaki user ko naya balance turant dikhe
     kaal_chain.load_chain_from_db() 
 
-    return jsonify({'message': 'Mined Success', 'new_balance': kaal_chain.get_balance(pata)}), 200
-        
-    kaal_chain.mine_block(pata, proof)
-    return jsonify({'message': 'Mined'}), 200
+    return jsonify({
+        'message': 'Mined Success', 
+        'new_balance': kaal_chain.get_balance(pata)
+    }), 200
 
 if __name__ == '__main__':
     # Render ke liye port set karna
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
-
-
-
