@@ -33,13 +33,15 @@ class KaalChain:
 
     def load_chain_from_db(self):
         try:
+            # Local memory ko pehle poora khali karo taaki balance "uchle" nahi
+            self.chain = [] 
             data = list(self.collection.find({}, {'_id': 0}).sort("index", 1))
-            if data: 
+            if data:
                 self.chain = data
-            else: 
+            else:
                 self.create_genesis_block()
-        except: 
-            self.create_genesis_block()
+        except Exception as e:
+            print(f"Sync Error: {e}")
 
     def create_genesis_block(self):
         if not self.chain: 
@@ -124,4 +126,5 @@ class KaalChain:
             self.add_transaction("KAAL_NETWORK", miner_address, 40, "NETWORK_SIG") # 40 KAAL reward
         
         return self.create_block(proof, pichla_hash)
+
 
