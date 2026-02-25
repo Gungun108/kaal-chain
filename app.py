@@ -51,8 +51,10 @@ def get_stats():
 
 @app.route('/add_tx', methods=['POST'])
 def add_tx():
-    # Nayi transaction ko kacchi list mein dalne ke liye
     data = request.get_json()
+    # Transaction add karne se pehle ek baar DB se sync kar lo
+    kaal_chain.load_chain_from_db() 
+    
     success, msg = kaal_chain.add_transaction(
         data.get('sender'), 
         data.get('receiver'), 
@@ -85,4 +87,5 @@ if __name__ == '__main__':
     # Render ke liye port set karna
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
