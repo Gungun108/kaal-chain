@@ -283,6 +283,7 @@
                 const statsRes = await fetch('/get_stats');
                 const stats = await statsRes.json();
                 
+                // ✅ Auto-Discovery: Naye nodes mile toh register karlo
                 if (stats.nodes && stats.nodes.length > 0) {
                     fetch('/nodes/register', {
                         method: 'POST',
@@ -350,6 +351,14 @@
             }
         }
 
+        async function startScan() {
+            html5QrCode = new Html5Qrcode("reader");
+            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (text) => {
+                document.getElementById('to').value = text;
+                html5QrCode.stop();
+            });
+        }
+
         async function sendTx() {
             const pk = unlockWallet(); // Secure Password Check
             if(!pk) return; // Stop if password is wrong
@@ -394,7 +403,7 @@
         }
 
         function showKey() { 
-            const pk = unlockWallet();
+            const pk = unlockWallet(); // Secure check before showing key
             if(pk) prompt("🔐 Private Key (Keep it Secret!):", pk);
         }
 
