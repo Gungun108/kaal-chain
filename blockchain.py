@@ -13,6 +13,8 @@ class KaalChain:
         self.pending_transactions = []
         self.difficulty = 3 
         self.nodes = set() # P2P Peers ki list
+        # Line 15: self.nodes = set() # P2P Peers ki list
+        self.nodes.add("kaal-chain.onrender.com") # ✅ Ye line jodd de
         
         # Bitcoin Logic Constants
         self.TARGET_BLOCK_TIME = 420  
@@ -188,3 +190,4 @@ class KaalChain:
         self.add_transaction("KAAL_NETWORK", miner_address, current_reward, "NETWORK_SIG")
         
         return self.create_block(proof, pichla_hash)
+
