@@ -43,10 +43,9 @@
         <button class="btn" id="mineBtn" onclick="toggleMining()">⚡ START MINING</button>
     </div>
 
-    <div id="hashDisplay" style="background:#222; color:#00ff00; font-family:monospace; font-size:10px; padding:10px; border-radius:10px; margin-bottom:10px; height:20px; overflow:hidden; border:1px solid #333; display:none;">
-    🔍 Scanning: <span id="currentHash">...</span>
-</div>
-
+    <div id="hashDisplay" style="background:#000; color:#00ff00; font-family:'Courier New', monospace; font-size:11px; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #333; display:none; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
+        ⚡ <span style="color:var(--kaal); font-weight:bold;">KAAL MINER:</span> <span id="currentHash">Ready...</span>
+    </div>
 
     <div class="activity-section">
         <h4 style="margin:0 0 10px 0; border-bottom:1px solid #eee;">📜 Recent Activity</h4>
@@ -105,89 +104,65 @@
         }
 
         async function sync() {
-    try {
-        // 1. Server se data mangwana
-        const res = await fetch('/get_info', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ address: pub })
-        });
-        const info = await res.json();
-
-        // 2. Safe Update: Balance tabhi badlo jab info sahi mile
-        if (info && info.balance !== undefined) {
-            document.getElementById('bal').innerText = parseFloat(info.balance).toFixed(2);
-            window.last_proof = info.last_proof || 100;
-            window.diff = info.difficulty || 3;
-        }
-
-        // 3. History Clean & Update
-        const statsRes = await fetch('/get_stats');
-        const stats = await statsRes.json();
-        
-        let html = '';
-        if (stats.chain && stats.chain.length > 0) {
-            stats.chain.forEach(block => {
-                block.transactions.forEach(tx => {
-                    if (tx.sender === pub || tx.receiver === pub) {
-                        let isReward = tx.sender === "KAAL_NETWORK";
-                        let isIN = tx.receiver === pub;
-                        html += `
-                        <div style="display:flex; justify-content:space-between; padding:12px; border-bottom:1px solid #eee; background:#fff; margin-bottom:5px; border-radius:10px;">
-                            <div>
-                                <b style="color:${isReward ? '#ff4500' : '#333'}">${isReward ? "⚡ Reward" : (isIN ? "📥 Received" : "📤 Sent")}</b><br>
-                                <small style="color:gray;">Block #${block.index}</small>
-                            </div>
-                            <div style="color:${isIN ? 'green' : 'red'}; font-weight:bold;">
-                                ${isIN ? '+' : '-'}${parseFloat(tx.amount).toFixed(2)}
-                            </div>
-                        </div>`;
-                    }
+            try {
+                const res = await fetch('/get_info', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ address: pub })
                 });
-            });
+                const info = await res.json();
+                if (info && info.balance !== undefined) {
+                    document.getElementById('bal').innerText = parseFloat(info.balance).toFixed(2);
+                    window.last_proof = info.last_proof || 100;
+                    window.diff = info.difficulty || 3;
+                }
+                const statsRes = await fetch('/get_stats');
+                const stats = await statsRes.json();
+                let html = '';
+                if (stats.chain && stats.chain.length > 0) {
+                    stats.chain.forEach(block => {
+                        block.transactions.forEach(tx => {
+                            if (tx.sender === pub || tx.receiver === pub) {
+                                let isReward = tx.sender === "KAAL_NETWORK";
+                                let isIN = tx.receiver === pub;
+                                html += `<div style="display:flex; justify-content:space-between; padding:12px; border-bottom:1px solid #eee; background:#fff; margin-bottom:5px; border-radius:10px;">
+                                    <div><b style="color:${isReward ? '#ff4500' : '#333'}">${isReward ? "⚡ Reward" : (isIN ? "📥 Received" : "📤 Sent")}</b><br>
+                                    <small style="color:gray;">Block #${block.index}</small></div>
+                                    <div style="color:${isIN ? 'green' : 'red'}; font-weight:bold;">${isIN ? '+' : '-'}${parseFloat(tx.amount).toFixed(2)}</div></div>`;
+                            }
+                        });
+                    });
+                }
+                document.getElementById('historyList').innerHTML = html || '<p style="text-align:center;color:gray;">No transactions found.</p>';
+            } catch (e) { console.log("Sync delay..."); }
         }
-        // Purana data saaf karke naya data set karo
-        document.getElementById('historyList').innerHTML = html || '<p style="text-align:center;color:gray;">No transactions found.</p>';
-        
-    } catch (e) { 
-        console.log("Network Slow: Purana data hi dikha rahe hain..."); 
-    }
-}
 
-async function mineLoop() {
-    let n = Math.floor(Math.random() * 1000000);
-    while(mining) {
-        n++;
-        // Device sync break
-        if(n % 1000 === 0) await new Promise(r => setTimeout(r, 100)); 
-        
-        const msg = (window.last_proof || 100) + "" + n;
-        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg));
-        const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-        
-        if(hex.startsWith('0'.repeat(window.diff || 3))) {
-            const res = await fetch('/mine', { 
-                method: 'POST', 
-                headers: {'Content-Type': 'application/json'}, 
-                body: JSON.stringify({address: pub, proof: n}) 
-            });
-            if(res.ok) { 
-                // Block mine hone ke baad turant sync
-                await sync(); 
-                n = Math.floor(Math.random() * 1000000); 
-            }
-        }
-    }
-}
         async function toggleMining() {
             mining = !mining;
             const btn = document.getElementById('mineBtn');
+            const hashBox = document.getElementById('hashDisplay');
             btn.innerText = mining ? "🛑 STOP MINING" : "⚡ START MINING";
             btn.style.background = mining ? "#333" : "var(--kaal)";
+            hashBox.style.display = mining ? 'block' : 'none'; // ✅ Toggle logic fixed
             if (mining) mineLoop();
         }
 
-        
+        async function mineLoop() {
+            let n = Math.floor(Math.random() * 1000000);
+            const hashText = document.getElementById('currentHash'); // ✅ Performance Fix: Outside loop
+            while(mining) {
+                n++;
+                if(n % 1000 === 0) await new Promise(r => setTimeout(r, 100)); 
+                const msg = (window.last_proof || 100) + "" + n;
+                const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg));
+                const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+                hashText.innerText = hex; // ✅ Real-time hash display
+                if(hex.startsWith('0'.repeat(window.diff || 3))) {
+                    const res = await fetch('/mine', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({address: pub, proof: n}) });
+                    if(res.ok) { await sync(); n = Math.floor(Math.random() * 1000000); }
+                }
+            }
+        }
 
         async function startScan() {
             html5QrCode = new Html5Qrcode("reader");
@@ -199,15 +174,16 @@ async function mineLoop() {
 
         async function sendTx() {
             const btn = document.getElementById('sendBtn');
-            const to = document.getElementById('to').value;
+            const to = document.getElementById('to').value.trim();
             const amt = document.getElementById('amt').value;
             if(!to || !amt) return alert("Details bharo!");
             btn.disabled = true; btn.innerText = "Sending...";
             try {
                 const res = await fetch('/add_tx', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ sender: pub, receiver: to, amount: amt, signature: priv }) });
                 const data = await res.json();
-                alert(data.message); closeModal('sendModal'); sync();
-            } catch(e) { alert(""); }
+                if(res.ok) { alert(data.message); closeModal('sendModal'); sync(); } 
+                else { alert("Error: " + data.message); }
+            } catch(e) { alert("Network Error!"); }
             btn.disabled = false; btn.innerText = "Confirm & Send";
         }
 
@@ -227,8 +203,3 @@ async function mineLoop() {
     </script>
 </body>
 </html>
-
-
-
-
-
