@@ -45,71 +45,79 @@ class KaalChain:
         try:
             db_data = list(self.collection.find({}, {'_id': 0}).sort("index", 1))
             if db_data and len(db_data) > 0:
-                self.chain = db_data
-                if 'difficulty' in self.chain[-1]:
-                    self.difficulty = self.chain[-1]['difficulty']
+                # ✅ Verification: DB se data load karte waqt integrity check
+                if self.is_chain_valid(db_data):
+                    self.chain = db_data
+                    if 'difficulty' in self.chain[-1]:
+                        self.difficulty = self.chain[-1]['difficulty']
+                    else:
+                        self.difficulty = 3 + (len(self.chain) // 10000) * 0.5
                 else:
-                    self.difficulty = 3 + (len(self.chain) // 10000) * 0.5
+                    print("⚠️ DB ALERT: Chain integrity compromised! Loading safe version...")
+                    self.chain = db_data # Fir bhi load kar rahe hain par warning ke sath
             elif not self.chain:
                 self.create_genesis_block()
         except Exception as e:
             print(f"Sync Error: {e}")
 
-    # ✅ P2P: Naye Node ko register karna (Indentation Fixed)
-    # blockchain.py mein ye check kar
-    # ✅ P2P: Naye Node ko register karna (Clean & Fixed)
+    # ✅ P2P: Naye Node ko register karna
     def register_node(self, address):
-        """Naye node ko list mein joddna aur duplicate hatana"""
         if not address: return
-        
-        # URL se IP ya Hostname nikalna
         parsed_url = urlparse(address)
         node_address = parsed_url.netloc if parsed_url.netloc else parsed_url.path
-        
-        # Render ya self-entry ko filter karna
         if node_address and node_address != "kaal-chain.onrender.com":
             self.nodes.add(node_address)
             print(f"📡 Node Registered: {node_address}")
 
-    # ✅ P2P: Consensus Algorithm (Added HTTPS support for Render)
+    # ✅ P2P: Consensus Algorithm
     def resolve_conflicts(self):
-        """Duniya bhar ke nodes se chain check karke sabse lambi wali apnana"""
         neighbours = self.nodes
         new_chain = None
         max_length = len(self.chain)
-
         for node in neighbours:
             try:
-                # Render hamesha https use karta hai, isliye dono try karenge
                 url = f"https://{node}/get_stats" if "onrender.com" in node else f"http://{node}/get_stats"
-                
                 response = requests.get(url, timeout=5)
                 if response.status_code == 200:
                     data = response.json()
                     length = data['blocks']
-                    chain = data['chain'][::-1] # Reverse for proper order
-
+                    chain = data['chain'][::-1] 
                     if length > max_length and self.is_chain_valid(chain):
                         max_length = length
                         new_chain = chain
             except Exception as e:
-                print(f"⚠️ Peer {node} se contact nahi ho paya")
                 continue
-
         if new_chain:
             self.chain = new_chain
             return True
         return False
 
+    # ✅ Security: Block ka hash dobara nikalne ke liye utility
+    def hash_block(self, block):
+        # '_id' ya 'hash' ko hata kar check karna zaruri hai verification ke liye
+        verified_block = {k: v for k, v in block.items() if k not in ['hash', '_id']}
+        encoded_block = json.dumps(verified_block, sort_keys=True).encode()
+        return hashlib.sha256(encoded_block).hexdigest()
+
+    # ✅ P2P: Chain validity check (Immutable Verification)
     def is_chain_valid(self, chain):
         last_block = chain[0]
         current_index = 1
         while current_index < len(chain):
             block = chain[current_index]
+            
+            # 1. Previous Hash check
             if block['previous_hash'] != last_block['hash']:
                 return False
+            
+            # 2. Hash Integrity check (Admin ne data toh nahi badla?)
+            if block['hash'] != self.hash_block(block):
+                return False
+                
+            # 3. Proof of Work difficulty check
             if not block['hash'].startswith('0' * int(block.get('difficulty', 3))):
                 return False
+                
             last_block = block
             current_index += 1
         return True
@@ -122,7 +130,6 @@ class KaalChain:
         if len(self.chain) > 0:
             last_block = self.chain[-1]
             time_taken = time.time() - last_block['timestamp']
-            
             if time_taken < self.TARGET_BLOCK_TIME:
                 self.difficulty += 0.05
             else:
@@ -130,7 +137,6 @@ class KaalChain:
         
         halvings = len(self.chain) // self.HALVING_INTERVAL
         block_reward = self.INITIAL_REWARD / (2 ** halvings)
-        
         current_supply = sum(b.get('reward', 0) for b in self.chain)
         if current_supply + block_reward > 51000000:
             block_reward = 0
@@ -145,12 +151,11 @@ class KaalChain:
             'difficulty': self.difficulty 
         }
         
-        encoded_block = json.dumps(block, sort_keys=True).encode()
-        block['hash'] = hashlib.sha256(encoded_block).hexdigest()
+        # Block ko hash karna (hash_block utility use kar rahe hain consistency ke liye)
+        block['hash'] = self.hash_block(block)
         
         self.pending_transactions = []
         self.chain.append(block)
-        
         try:
             self.collection.insert_one(block)
         except: 
@@ -172,12 +177,10 @@ class KaalChain:
         for tx in self.pending_transactions:
             if tx['signature'] == signature:
                 return False, "Double transaction!"
-
         if sender != "KAAL_NETWORK":
             current_balance = self.get_balance(sender)
             if current_balance < float(amount):
                 return False, "Low Balance!"
-
         self.pending_transactions.append({
             'sender': sender, 
             'receiver': receiver, 
@@ -190,14 +193,8 @@ class KaalChain:
     def mine_block(self, miner_address, proof):
         self.load_chain_from_db()
         self.resolve_conflicts()
-        
         pichla_hash = self.chain[-1]['hash'] if self.chain else '0'
-        
         halvings = len(self.chain) // self.HALVING_INTERVAL
         current_reward = self.INITIAL_REWARD / (2 ** halvings)
-        
         self.add_transaction("KAAL_NETWORK", miner_address, current_reward, "NETWORK_SIG")
-        
         return self.create_block(proof, pichla_hash)
-
-
