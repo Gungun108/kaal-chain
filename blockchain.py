@@ -57,19 +57,21 @@ class KaalChain:
 
     # ✅ P2P: Naye Node ko register karna (Indentation Fixed)
     # blockchain.py mein ye check kar
+    # ✅ P2P: Naye Node ko register karna (Clean & Fixed)
     def register_node(self, address):
-        # Agar mobile data se koi naya IP aaya hai, toh use add karo
+        """Naye node ko list mein joddna aur duplicate hatana"""
+        if not address: return
+        
+        # URL se IP ya Hostname nikalna
         parsed_url = urlparse(address)
         node_address = parsed_url.netloc if parsed_url.netloc else parsed_url.path
+        
+        # Render ya self-entry ko filter karna
         if node_address and node_address != "kaal-chain.onrender.com":
-           self.nodes.add(node_address)
-            # IP ya URL format sahi karke save karna
-            parsed_url = urlparse(address)
-            node_address = parsed_url.netloc if parsed_url.netloc else parsed_url.path
-            if node_address:
-                self.nodes.add(node_address)
+            self.nodes.add(node_address)
+            print(f"📡 Node Registered: {node_address}")
 
-    # ✅ P2P: Consensus Algorithm
+    # ✅ P2P: Consensus Algorithm (Added HTTPS support for Render)
     def resolve_conflicts(self):
         """Duniya bhar ke nodes se chain check karke sabse lambi wali apnana"""
         neighbours = self.nodes
@@ -78,18 +80,20 @@ class KaalChain:
 
         for node in neighbours:
             try:
-                # Render node ko khud se connect hone se rokne ke liye
-                if node == "kaal-chain.onrender.com": continue
+                # Render hamesha https use karta hai, isliye dono try karenge
+                url = f"https://{node}/get_stats" if "onrender.com" in node else f"http://{node}/get_stats"
                 
-                response = requests.get(f'http://{node}/get_stats', timeout=5)
+                response = requests.get(url, timeout=5)
                 if response.status_code == 200:
-                    length = response.json()['blocks']
-                    chain = response.json()['chain'][::-1] 
+                    data = response.json()
+                    length = data['blocks']
+                    chain = data['chain'][::-1] # Reverse for proper order
 
                     if length > max_length and self.is_chain_valid(chain):
                         max_length = length
                         new_chain = chain
-            except:
+            except Exception as e:
+                print(f"⚠️ Peer {node} se contact nahi ho paya")
                 continue
 
         if new_chain:
@@ -195,4 +199,5 @@ class KaalChain:
         self.add_transaction("KAAL_NETWORK", miner_address, current_reward, "NETWORK_SIG")
         
         return self.create_block(proof, pichla_hash)
+
 
