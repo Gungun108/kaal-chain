@@ -204,7 +204,7 @@
         function openModal(id) { document.getElementById(id).style.display = 'block'; }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; if (html5QrCode) html5QrCode.stop(); }
 
-        // ✅ Encryption Logic
+        // ✅ Updated Encryption logic with Strict Validation
         function saveEncrypted(key, password) {
             let encrypted = "";
             for (let i = 0; i < key.length; i++) {
@@ -217,14 +217,28 @@
         function unlockWallet() {
             let vault = localStorage.getItem('kaal_vault');
             if (!vault) return null;
-            let pass = prompt("🔐 Enter Wallet Password to Unlock:");
+
+            let pass = prompt("🔐 Enter Wallet Password to Authorize:");
             if (!pass) return null;
-            let decrypted = atob(vault);
-            let key = "";
-            for (let i = 0; i < decrypted.length; i++) {
-                key += String.fromCharCode(decrypted.charCodeAt(i) ^ pass.charCodeAt(i % pass.length));
+
+            try {
+                let decrypted = atob(vault);
+                let key = "";
+                for (let i = 0; i < decrypted.length; i++) {
+                    key += String.fromCharCode(decrypted.charCodeAt(i) ^ pass.charCodeAt(i % pass.length));
+                }
+
+                // Strict Hex Validation: Private key must be 64 hex chars
+                const hexRegex = /^[0-9a-fA-F]{64}$/;
+                if (!hexRegex.test(key)) {
+                    alert("❌ Invalid Password! Access Denied.");
+                    return null;
+                }
+                return key;
+            } catch (e) {
+                alert("❌ Authentication Error!");
+                return null;
             }
-            return key;
         }
 
         async function syncNetwork() {
@@ -244,7 +258,7 @@
                 const privateKey = key.getPrivate('hex');
                 pub = "KAAL" + ec.hash().update(key.getPublic('hex', true)).digest('hex').substring(0, 40).toUpperCase();
                 
-                let pass = prompt("🛡️ Set a Password to Encrypt your New Wallet:");
+                let pass = prompt("🛡️ Set a Secure Password for your KAAL Wallet:");
                 if(!pass) pass = "kaal123"; 
                 
                 saveEncrypted(privateKey, pass);
@@ -269,7 +283,6 @@
                 const statsRes = await fetch('/get_stats');
                 const stats = await statsRes.json();
                 
-                // ✅ Auto-Discovery: Naye nodes mile toh register karlo
                 if (stats.nodes && stats.nodes.length > 0) {
                     fetch('/nodes/register', {
                         method: 'POST',
@@ -338,20 +351,25 @@
         }
 
         async function sendTx() {
-            const pk = unlockWallet(); // Key unlock karo
-            if(!pk) return alert("❌ Wrong Password or Cancelled!");
+            const pk = unlockWallet(); // Secure Password Check
+            if(!pk) return; // Stop if password is wrong
 
             const to = document.getElementById('to').value.trim();
             const amt = document.getElementById('amt').value;
             if (!to || !amt) return alert("Details bharo!");
             
             const btn = document.getElementById('sendBtn');
-            btn.disabled = true; btn.innerText = "Sending...";
+            btn.disabled = true; btn.innerText = "Authorizing...";
             try {
                 const res = await fetch('/add_tx', { 
                     method: 'POST', 
                     headers: { 'Content-Type': 'application/json' }, 
-                    body: JSON.stringify({ sender: pub, receiver: to, amount: amt, signature: pk }) 
+                    body: JSON.stringify({ 
+                        sender: pub, 
+                        receiver: to, 
+                        amount: amt, 
+                        signature: pk // Send only verified key
+                    }) 
                 });
                 const data = await res.json();
                 if (res.ok) { alert(data.message); closeModal('sendModal'); sync(); }
@@ -378,7 +396,6 @@
         function showKey() { 
             const pk = unlockWallet();
             if(pk) prompt("🔐 Private Key (Keep it Secret!):", pk);
-            else alert("❌ Access Denied!");
         }
 
         function copyAddr() { navigator.clipboard.writeText(pub); alert("Copied!"); }
