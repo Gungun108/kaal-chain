@@ -9,11 +9,12 @@ kaal_chain = KaalChain()
 
 @app.route('/')
 def index():
-    # ✅ Auto-Discovery: Jab koi page load kare, uska IP nodes mein register kar lo
-    client_ip = request.remote_addr
+    # ✅ Auto-Discovery Update: Render/Proxy ke piche se asli IP nikalna
+    client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
     if client_ip and client_ip != "127.0.0.1":
-        # Render ya Local dono ke liye registration logic
-        kaal_chain.register_node(f"http://{client_ip}:5000")
+        # Multi-IP string mein se pehla IP uthana
+        actual_ip = client_ip.split(',')[0].strip()
+        kaal_chain.register_node(f"http://{actual_ip}:5000")
     return render_template('index.html')
 
 # ✅ Route: Doosre Miners/Nodes ko list mein joddna
