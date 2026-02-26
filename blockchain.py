@@ -14,7 +14,7 @@ class KaalChain:
         
         # Bitcoin Logic Constants
         self.TARGET_BLOCK_TIME = 420  # 7 Minutes (7 * 60 seconds)
-        self.HALVING_INTERVAL = 5000  # Har 5000 blocks par reward aadha
+        self.HALVING_INTERVAL = 300000  # Har 300000 blocks par reward aadha
         self.INITIAL_REWARD = 40      # Shuruati reward 40 KAAL
         
         mongo_uri = os.environ.get("MONGO_URI")
@@ -140,3 +140,4 @@ class KaalChain:
         self.add_transaction("KAAL_NETWORK", miner_address, current_reward, "NETWORK_SIG")
         
         return self.create_block(proof, pichla_hash)
+
