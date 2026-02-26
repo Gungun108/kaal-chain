@@ -13,11 +13,12 @@ class KaalChain:
         self.pending_transactions = []
         self.difficulty = 3 
         self.nodes = set() # P2P Peers ki list
-        # Line 15: self.nodes = set() # P2P Peers ki list
-        self.nodes.add("kaal-chain.onrender.com") # ✅ Ye line jodd de
+        
+        # ✅ Seed Node (Render URL) default add kar rahe hain
+        self.nodes.add("kaal-chain.onrender.com")
         
         # Bitcoin Logic Constants
-        self.TARGET_BLOCK_TIME = 420  
+        self.TARGET_BLOCK_TIME = 420  # 7 Minutes
         self.HALVING_INTERVAL = 300000  
         self.INITIAL_REWARD = 40      
         
@@ -54,19 +55,19 @@ class KaalChain:
         except Exception as e:
             print(f"Sync Error: {e}")
 
-    # ✅ P2P: Naye Node ko register karna
+    # ✅ P2P: Naye Node ko register karna (Indentation Fixed)
     def register_node(self, address):
-    """Naye node ko list mein joddna aur duplicate hatana"""
+        """Naye node ko list mein joddna aur duplicate hatana"""
         if "onrender.com" in address:
-        self.nodes.add("kaal-chain.onrender.com")
+            self.nodes.add("kaal-chain.onrender.com")
         else:
-        # IP ya URL format sahi karke save karna
-        parsed_url = urlparse(address)
-        node_address = parsed_url.netloc if parsed_url.netloc else parsed_url.path
+            # IP ya URL format sahi karke save karna
+            parsed_url = urlparse(address)
+            node_address = parsed_url.netloc if parsed_url.netloc else parsed_url.path
             if node_address:
-               self.nodes.add(node_address)
+                self.nodes.add(node_address)
 
-    # ✅ P2P: Consensus Algorithm (Sabse lambi chain jeetegi)
+    # ✅ P2P: Consensus Algorithm
     def resolve_conflicts(self):
         """Duniya bhar ke nodes se chain check karke sabse lambi wali apnana"""
         neighbours = self.nodes
@@ -75,10 +76,13 @@ class KaalChain:
 
         for node in neighbours:
             try:
+                # Render node ko khud se connect hone se rokne ke liye
+                if node == "kaal-chain.onrender.com": continue
+                
                 response = requests.get(f'http://{node}/get_stats', timeout=5)
                 if response.status_code == 200:
                     length = response.json()['blocks']
-                    chain = response.json()['chain'][::-1] # Reverse kyunki stats desc deta hai
+                    chain = response.json()['chain'][::-1] 
 
                     if length > max_length and self.is_chain_valid(chain):
                         max_length = length
@@ -88,11 +92,9 @@ class KaalChain:
 
         if new_chain:
             self.chain = new_chain
-            # Optional: Yahan DB update logic daal sakte ho
             return True
         return False
 
-    # ✅ P2P: Chain validity check karna
     def is_chain_valid(self, chain):
         last_block = chain[0]
         current_index = 1
@@ -124,8 +126,7 @@ class KaalChain:
         block_reward = self.INITIAL_REWARD / (2 ** halvings)
         
         current_supply = sum(b.get('reward', 0) for b in self.chain)
-        max_supply = 51000000
-        if current_supply + block_reward > max_supply:
+        if current_supply + block_reward > 51000000:
             block_reward = 0
         
         block = {
@@ -182,7 +183,6 @@ class KaalChain:
 
     def mine_block(self, miner_address, proof):
         self.load_chain_from_db()
-        # Mining se pehle ek baar network sync karlo
         self.resolve_conflicts()
         
         pichla_hash = self.chain[-1]['hash'] if self.chain else '0'
@@ -193,6 +193,3 @@ class KaalChain:
         self.add_transaction("KAAL_NETWORK", miner_address, current_reward, "NETWORK_SIG")
         
         return self.create_block(proof, pichla_hash)
-
-
-
