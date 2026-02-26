@@ -124,6 +124,7 @@ class KaalChain:
 
     def create_genesis_block(self):
         if not self.chain: 
+            self.add_transaction("KAAL_NETWORK", "GENESIS", 0, "🔱 KAAL CHAIN: The Era of Time Begins")
             self.create_block(proof=100, previous_hash='0')
 
     def create_block(self, proof, previous_hash):
@@ -198,3 +199,4 @@ class KaalChain:
         current_reward = self.INITIAL_REWARD / (2 ** halvings)
         self.add_transaction("KAAL_NETWORK", miner_address, current_reward, "NETWORK_SIG")
         return self.create_block(proof, pichla_hash)
+
