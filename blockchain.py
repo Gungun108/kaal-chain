@@ -56,11 +56,13 @@ class KaalChain:
             print(f"Sync Error: {e}")
 
     # ✅ P2P: Naye Node ko register karna (Indentation Fixed)
+    # blockchain.py mein ye check kar
     def register_node(self, address):
-        """Naye node ko list mein joddna aur duplicate hatana"""
-        if "onrender.com" in address:
-            self.nodes.add("kaal-chain.onrender.com")
-        else:
+        # Agar mobile data se koi naya IP aaya hai, toh use add karo
+        parsed_url = urlparse(address)
+        node_address = parsed_url.netloc if parsed_url.netloc else parsed_url.path
+        if node_address and node_address != "kaal-chain.onrender.com":
+           self.nodes.add(node_address)
             # IP ya URL format sahi karke save karna
             parsed_url = urlparse(address)
             node_address = parsed_url.netloc if parsed_url.netloc else parsed_url.path
@@ -193,3 +195,4 @@ class KaalChain:
         self.add_transaction("KAAL_NETWORK", miner_address, current_reward, "NETWORK_SIG")
         
         return self.create_block(proof, pichla_hash)
+
