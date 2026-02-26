@@ -61,7 +61,8 @@ def get_stats():
         return jsonify({
             'blocks': len(clean_chain),
             'chain': clean_chain[::-1],
-            'total_supply': sum(b.get('reward', 0) for b in clean_chain)
+            'total_supply': sum(b.get('reward', 0) for b in clean_chain),
+            'nodes': list(kaal_chain.nodes) # ✅ Ye line jodd de taaki Wallet par Nodes dikhein
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -107,4 +108,5 @@ def mine():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
