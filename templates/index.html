@@ -116,8 +116,9 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.9);
             z-index: 2000;
+            overflow-y: auto;
         }
 
         #peerCount {
@@ -126,6 +127,26 @@
             border-radius: 12px;
             font-weight: bold;
             transition: 0.3s;
+        }
+
+        .seed-box {
+            background: #fff5f0;
+            border: 2px dashed var(--kaal);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+        }
+
+        .word {
+            background: white;
+            padding: 5px;
+            border-radius: 5px;
+            border: 1px solid #eee;
+            font-size: 12px;
+            font-weight: bold;
         }
     </style>
 </head>
@@ -144,8 +165,9 @@
         <button class="menu-item" style="color: blue;" onclick="syncNetwork()">🔄 Force Network Sync</button>
         <button class="menu-item" onclick="toggleMenu(); openModal('sendModal')">📤 Send KAAL</button>
         <button class="menu-item" onclick="toggleMenu(); openModal('recModal')">📥 Receive KAAL</button>
-        <button class="menu-item" onclick="toggleMenu(); openModal('impModal')">🔑 Import Wallet</button>
+        <button class="menu-item" onclick="toggleMenu(); showSeed()">🔑 View Seed Phrase</button>
         <button class="menu-item" onclick="showKey()">👁️ View Private Key</button>
+        <button class="menu-item" style="color:red;" onclick="logout()">🚪 Logout/Reset</button>
         <button class="menu-item" style="color:var(--kaal);" onclick="window.location.href='/explorer'">🌐 Open Explorer</button>
     </div>
 
@@ -164,6 +186,32 @@
     <div class="activity-section">
         <h4 style="margin:0 0 10px 0; border-bottom:1px solid #eee;">📜 Recent Activity</h4>
         <div id="historyList" class="history-container">Syncing Ledger...</div>
+    </div>
+
+    <div id="setupModal" class="modal">
+        <div class="card" style="width:85%; margin:50px auto;">
+            <h2 id="setupTitle">Welcome to KAAL</h2>
+            <p id="setupDesc" style="font-size:12px; color:#666;">Create a new secure wallet or restore an old one.</p>
+            
+            <div id="seedDisplay" style="display:none;">
+                <div class="seed-box" id="seedWords"></div>
+                <p style="color:red; font-size:11px; font-weight:bold;">⚠️ Write these 12 words on PAPER. If you lose them, your coins are GONE forever!</p>
+            </div>
+
+            <div id="importBox" style="display:none;">
+                <textarea id="importInput" placeholder="Enter your 12 words or Private Key here..." style="width:90%; height:80px; padding:10px; border-radius:10px; border:1px solid #ccc;"></textarea>
+            </div>
+
+            <input type="password" id="walletPass" placeholder="Set Wallet Password" style="width:85%; padding:12px; margin-top:10px; border-radius:10px; border:1px solid #ccc;">
+            
+            <div id="setupBtns">
+                <button class="btn" onclick="generateNewWallet()">🆕 Create New Wallet</button>
+                <button class="btn" style="background:#444;" onclick="showImportUI()">📥 Restore Wallet</button>
+            </div>
+            
+            <button id="finalBtn" class="btn" style="display:none;" onclick="finalizeSetup()">✅ I've Saved the Words</button>
+            <button id="restoreBtn" class="btn" style="display:none; background:#444;" onclick="finalizeSetup(true)">📥 Restore Now</button>
+        </div>
     </div>
 
     <div id="sendModal" class="modal">
@@ -187,58 +235,79 @@
         </div>
     </div>
 
-    <div id="impModal" class="modal">
-        <div class="card" style="width:85%; margin:30px auto;">
-            <h3>Restore Wallet</h3>
-            <input type="text" id="impKey" placeholder="Paste Private Key Here" style="width:85%; padding:12px; border-radius:10px; border:1px solid #ccc;">
-            <button class="btn" onclick="importWallet()">Restore & Login</button>
-            <button class="btn" style="background:gray;" onclick="closeModal('impModal')">Cancel</button>
-        </div>
-    </div>
-
     <script>
         const ec = new (elliptic.ec)('secp256k1');
-        let mining = false, pub, priv, html5QrCode;
+        const wordList = ["shiva", "brahma", "vishnu", "nandi", "kaal", "agni", "vayu", "shakti", "rudra", "dharma", "karma", "moksha", "bhakti", "yoga", "shanti", "om", "surya", "chandra", "ganesha", "hanuman"]; 
+        let mining = false, pub, html5QrCode;
 
         function toggleMenu() { document.getElementById('sideMenu').classList.toggle('active'); }
         function openModal(id) { document.getElementById(id).style.display = 'block'; }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; if (html5QrCode) html5QrCode.stop(); }
 
-        // ✅ Updated Encryption logic with Strict Validation
-        function saveEncrypted(key, password) {
+        // ✅ Seed Phrase Generator Logic
+        function generateNewWallet() {
+            let mnemonic = [];
+            for(let i=0; i<12; i++) {
+                mnemonic.push(wordList[Math.floor(Math.random() * wordList.length)]);
+            }
+            window.temp_mnemonic = mnemonic.join(" ");
+            const wordsHtml = mnemonic.map(w => `<div class="word">${w}</div>`).join("");
+            document.getElementById('seedWords').innerHTML = wordsHtml;
+            document.getElementById('seedDisplay').style.display = 'block';
+            document.getElementById('setupBtns').style.display = 'none';
+            document.getElementById('finalBtn').style.display = 'block';
+        }
+
+        function showImportUI() {
+            document.getElementById('importBox').style.display = 'block';
+            document.getElementById('setupBtns').style.display = 'none';
+            document.getElementById('restoreBtn').style.display = 'block';
+        }
+
+        function finalizeSetup(isImport = false) {
+            const pass = document.getElementById('walletPass').value;
+            if (pass.length < 4) return alert("Password set karo!");
+
+            let privateKey;
+            if (isImport) {
+                const input = document.getElementById('importInput').value.trim().toLowerCase();
+                if (input.length === 64 && /^[0-9a-fA-F]+$/.test(input)) {
+                    privateKey = input; // Private Key import
+                } else {
+                    privateKey = ec.hash().update(input).digest('hex'); // Seed Phrase import
+                }
+            } else {
+                privateKey = ec.hash().update(window.temp_mnemonic).digest('hex'); // From New Seed
+            }
+
+            const key = ec.keyFromPrivate(privateKey);
+            const publicK = "KAAL" + ec.hash().update(key.getPublic('hex', true)).digest('hex').substring(0, 40).toUpperCase();
+
+            // Encrypt and Save
             let encrypted = "";
-            for (let i = 0; i < key.length; i++) {
-                encrypted += String.fromCharCode(key.charCodeAt(i) ^ password.charCodeAt(i % password.length));
+            for (let i = 0; i < privateKey.length; i++) {
+                encrypted += String.fromCharCode(privateKey.charCodeAt(i) ^ pass.charCodeAt(i % pass.length));
             }
             localStorage.setItem('kaal_vault', btoa(encrypted));
-            localStorage.setItem('kaal_setup', 'true');
+            localStorage.setItem('kaal_pub', publicK);
+            if(!isImport) localStorage.setItem('kaal_seed', btoa(window.temp_mnemonic));
+            
+            location.reload();
         }
 
         function unlockWallet() {
-            let vault = localStorage.getItem('kaal_vault');
+            const vault = localStorage.getItem('kaal_vault');
             if (!vault) return null;
-
-            let pass = prompt("🔐 Enter Wallet Password to Authorize:");
+            const pass = prompt("🔐 Enter Wallet Password:");
             if (!pass) return null;
-
             try {
-                let decrypted = atob(vault);
+                const decrypted = atob(vault);
                 let key = "";
-                for (let i = 0; i < decrypted.length; i++) {
-                    key += String.fromCharCode(decrypted.charCodeAt(i) ^ pass.charCodeAt(i % pass.length));
-                }
-
-                // Strict Hex Validation: Private key must be 64 hex chars
+                for (let i = 0; i < decrypted.length; i++) key += String.fromCharCode(decrypted.charCodeAt(i) ^ pass.charCodeAt(i % pass.length));
                 const hexRegex = /^[0-9a-fA-F]{64}$/;
-                if (!hexRegex.test(key)) {
-                    alert("❌ Invalid Password! Access Denied.");
-                    return null;
-                }
+                if (!hexRegex.test(key)) { alert("❌ Wrong Password!"); return null; }
                 return key;
-            } catch (e) {
-                alert("❌ Authentication Error!");
-                return null;
-            }
+            } catch (e) { return null; }
         }
 
         async function syncNetwork() {
@@ -250,25 +319,16 @@
         }
 
         async function init() {
-            pub = localStorage.getItem('kaal_pub');
-            const setup = localStorage.getItem('kaal_setup');
-
-            if (!pub || !setup) {
-                const key = ec.genKeyPair();
-                const privateKey = key.getPrivate('hex');
-                pub = "KAAL" + ec.hash().update(key.getPublic('hex', true)).digest('hex').substring(0, 40).toUpperCase();
-                
-                let pass = prompt("🛡️ Set a Secure Password for your KAAL Wallet:");
-                if(!pass) pass = "kaal123"; 
-                
-                saveEncrypted(privateKey, pass);
-                localStorage.setItem('kaal_pub', pub);
+            if (localStorage.getItem('kaal_vault')) {
+                document.getElementById('setupModal').style.display = 'none';
+                pub = localStorage.getItem('kaal_pub');
+                document.getElementById('addrDisp').innerText = pub;
+                document.getElementById('recAddr').innerText = pub;
+                new QRCode(document.getElementById("qrcode"), { text: pub, width: 140, height: 140 });
+                sync(); setInterval(sync, 15000);
+            } else {
+                document.getElementById('setupModal').style.display = 'block';
             }
-            
-            document.getElementById('addrDisp').innerText = pub;
-            document.getElementById('recAddr').innerText = pub;
-            new QRCode(document.getElementById("qrcode"), { text: pub, width: 140, height: 140 });
-            sync(); setInterval(sync, 15000);
         }
 
         async function sync() {
@@ -279,11 +339,9 @@
                     body: JSON.stringify({ address: pub })
                 });
                 const info = await res.json();
-
                 const statsRes = await fetch('/get_stats');
                 const stats = await statsRes.json();
                 
-                // ✅ Auto-Discovery: Naye nodes mile toh register karlo
                 if (stats.nodes && stats.nodes.length > 0) {
                     fetch('/nodes/register', {
                         method: 'POST',
@@ -292,13 +350,7 @@
                     });
                 }
 
-                const pCount = document.getElementById('peerCount');
-                if (stats.nodes) {
-                    pCount.innerText = `🌐 P2P: ${stats.nodes.length} Nodes`;
-                    pCount.style.background = stats.nodes.length > 0 ? '#eaffea' : '#ffeaea';
-                    pCount.style.color = stats.nodes.length > 0 ? 'green' : 'red';
-                }
-
+                document.getElementById('peerCount').innerText = `🌐 P2P: ${stats.nodes ? stats.nodes.length : 0} Nodes`;
                 if (info && info.balance !== undefined) {
                     document.getElementById('bal').innerText = parseFloat(info.balance).toFixed(2);
                     window.last_proof = info.last_proof || 100;
@@ -321,7 +373,7 @@
                     });
                 }
                 document.getElementById('historyList').innerHTML = html || '<p style="text-align:center;color:gray;">No transactions found.</p>';
-            } catch (e) { console.log("Sync delay..."); }
+            } catch (e) {}
         }
 
         async function toggleMining() {
@@ -360,25 +412,18 @@
         }
 
         async function sendTx() {
-            const pk = unlockWallet(); // Secure Password Check
-            if(!pk) return; // Stop if password is wrong
-
+            const pk = unlockWallet();
+            if(!pk) return;
             const to = document.getElementById('to').value.trim();
             const amt = document.getElementById('amt').value;
             if (!to || !amt) return alert("Details bharo!");
-            
             const btn = document.getElementById('sendBtn');
             btn.disabled = true; btn.innerText = "Authorizing...";
             try {
                 const res = await fetch('/add_tx', { 
                     method: 'POST', 
                     headers: { 'Content-Type': 'application/json' }, 
-                    body: JSON.stringify({ 
-                        sender: pub, 
-                        receiver: to, 
-                        amount: amt, 
-                        signature: pk // Send only verified key
-                    }) 
+                    body: JSON.stringify({ sender: pub, receiver: to, amount: amt, signature: pk }) 
                 });
                 const data = await res.json();
                 if (res.ok) { alert(data.message); closeModal('sendModal'); sync(); }
@@ -387,24 +432,22 @@
             btn.disabled = false; btn.innerText = "Confirm & Send";
         }
 
-        function importWallet() {
-            const key = document.getElementById('impKey').value.trim();
-            if (key.length < 60) return alert("Galat Key!");
-            let pass = prompt("🛡️ Set a Password for this Imported Wallet:");
-            if(!pass) return alert("Password Required!");
-            
-            try {
-                const pair = ec.keyFromPrivate(key);
-                const newPub = "KAAL" + ec.hash().update(pair.getPublic('hex', true)).digest('hex').substring(0, 40).toUpperCase();
-                saveEncrypted(key, pass);
-                localStorage.setItem('kaal_pub', newPub);
-                location.reload();
-            } catch (e) { alert("Fail!"); }
+        function showSeed() {
+            const seed = localStorage.getItem('kaal_seed');
+            if(seed) alert("🔐 Your Seed Phrase (KEEP SECRET):\n\n" + atob(seed));
+            else alert("Seed phrase not available for imported keys.");
         }
 
-        function showKey() { 
-            const pk = unlockWallet(); // Secure check before showing key
-            if(pk) prompt("🔐 Private Key (Keep it Secret!):", pk);
+        function showKey() {
+            const pk = unlockWallet();
+            if(pk) prompt("🔐 Private Key:", pk);
+        }
+
+        function logout() {
+            if(confirm("⚠️ Reset Wallet? Make sure you have your Seed Phrase/Private Key!")) {
+                localStorage.clear();
+                location.reload();
+            }
         }
 
         function copyAddr() { navigator.clipboard.writeText(pub); alert("Copied!"); }
