@@ -9,7 +9,10 @@ kaal_chain = KaalChain()
 
 @app.route('/')
 def index():
-    # Pehla page jo wallet kholte hi dikhega
+    # Jab koi page load kare, uska IP nodes mein register kar lo
+    client_ip = request.remote_addr
+    if client_ip and client_ip != "127.0.0.1":
+        kaal_chain.register_node(f"http://{client_ip}:5000")
     return render_template('index.html')
 
 # ✅ Naya Route: Doosre Miners/Nodes ko list mein joddna
@@ -104,3 +107,4 @@ def mine():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
