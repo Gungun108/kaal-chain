@@ -86,18 +86,31 @@
     <h1 style="text-align:center; color:var(--kaal);">🔍 KAAL CHAIN EXPLORER</h1>
 
     <div class="stats-row">
-        <div class="table-container" style="margin-bottom: 20px;">
-    <input type="text" id="searchInput" onkeyup="searchLedger()" placeholder="Search by Address, Hash, or Block Index..." 
-           style="width:95%; padding:12px; border-radius:10px; border:1px solid #333; background:#222; color:white;">
-</div>
+        <div class="table-container" style="margin-bottom: 20px; width: 100%;">
+            <input type="text" id="searchInput" onkeyup="searchLedger()" placeholder="Search by Address, Hash, or Block Index..." 
+                   style="width:95%; padding:12px; border-radius:10px; border:1px solid #333; background:#222; color:white;">
+        </div>
+        
         <div class="stat-card">
             <p>Total Blocks</p>
             <h2 id="totalBlocks">0</h2>
         </div>
+        
         <div class="stat-card">
             <p>Total KAAL Supply</p>
             <h2 id="totalSupply">0.00</h2>
         </div>
+
+        <div class="stat-card">
+            <p>Current Block Reward</p>
+            <h2 id="currentReward" style="color: #00ff00;">40.00 KAAL</h2>
+        </div>
+
+        <div class="stat-card">
+            <p>Next Halving In</p>
+            <h2 id="halvingCountdown" style="color: #ffcc00;">5000 Blocks</h2>
+        </div>
+
         <div class="stat-card">
             <p>Network Status</p>
             <h2 style="color: #00ff00;">LIVE</h2>
@@ -128,8 +141,18 @@
                 const data = await res.json();
 
                 // Stats update karna
-                document.getElementById('totalBlocks').innerText = data.blocks;
+                const totalBlocks = data.blocks;
+                document.getElementById('totalBlocks').innerText = totalBlocks;
                 document.getElementById('totalSupply').innerText = data.total_supply.toFixed(2) + " KAAL";
+
+                // ✅ Halving aur Reward Logic Update
+                const halvingInterval = 5000;
+                const halvings = Math.floor(totalBlocks / halvingInterval);
+                const currentReward = 40 / Math.pow(2, halvings);
+                document.getElementById('currentReward').innerText = currentReward.toFixed(2) + " KAAL";
+
+                const blocksUntilNext = halvingInterval - (totalBlocks % halvingInterval);
+                document.getElementById('halvingCountdown').innerText = blocksUntilNext + " Blocks";
 
                 // Table mein blocks dhalna
                 let html = '';
@@ -154,22 +177,20 @@
         setInterval(updateExplorer, 5000);
 
         function searchLedger() {
-    let input = document.getElementById("searchInput").value.toLowerCase();
-    let table = document.getElementById("blockTable");
-    let rows = table.getElementsByTagName("tr");
+            let input = document.getElementById("searchInput").value.toLowerCase();
+            let table = document.getElementById("blockTable");
+            let rows = table.getElementsByTagName("tr");
 
-    for (let i = 0; i < rows.length; i++) {
-        let textContent = rows[i].textContent.toLowerCase();
-        // Agar row mein search kiya hua shabd hai toh dikhao, varna chhupa do
-        if (textContent.includes(input)) {
-            rows[i].style.display = "";
-        } else {
-            rows[i].style.display = "none";
+            for (let i = 0; i < rows.length; i++) {
+                let textContent = rows[i].textContent.toLowerCase();
+                if (textContent.includes(input)) {
+                    rows[i].style.display = "";
+                } else {
+                    rows[i].style.display = "none";
+                }
+            }
         }
-    }
-}
     </script>
 </body>
 
 </html>
-
