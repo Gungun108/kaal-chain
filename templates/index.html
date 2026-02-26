@@ -120,7 +120,6 @@
             z-index: 2000;
         }
 
-        /* ✅ P2P Status Badge Style */
         #peerCount {
             font-size: 10px;
             padding: 3px 10px;
@@ -141,28 +140,23 @@
     </div>
 
     <div id="sideMenu" class="side-menu">
-        <button class="menu-item" style="background:#eee; color:#333; text-align:center;" onclick="toggleMenu()">✖ CLOSE
-            MENU</button>
+        <button class="menu-item" style="background:#eee; color:#333; text-align:center;" onclick="toggleMenu()">✖ CLOSE MENU</button>
         <button class="menu-item" style="color: blue;" onclick="syncNetwork()">🔄 Force Network Sync</button>
         <button class="menu-item" onclick="toggleMenu(); openModal('sendModal')">📤 Send KAAL</button>
         <button class="menu-item" onclick="toggleMenu(); openModal('recModal')">📥 Receive KAAL</button>
         <button class="menu-item" onclick="toggleMenu(); openModal('impModal')">🔑 Import Wallet</button>
         <button class="menu-item" onclick="showKey()">👁️ View Private Key</button>
-        <button class="menu-item" style="color:var(--kaal);" onclick="window.location.href='/explorer'">🌐 Open
-            Explorer</button>
+        <button class="menu-item" style="color:var(--kaal);" onclick="window.location.href='/explorer'">🌐 Open Explorer</button>
     </div>
 
     <div class="card">
         <div id="bal" style="font-size:38px; font-weight:900; color:var(--kaal); margin:0;">0.00</div>
         <div style="font-size:10px; color:gray;">KAAL COINS</div>
-        <div id="addrDisp"
-            style="font-size:9px; color:green; background:#eaffea; padding:8px; border-radius:8px; border:1px dashed #4caf50; word-break:break-all; margin:10px 0; cursor:pointer;"
-            onclick="copyAddr()">Loading Address...</div>
+        <div id="addrDisp" style="font-size:9px; color:green; background:#eaffea; padding:8px; border-radius:8px; border:1px dashed #4caf50; word-break:break-all; margin:10px 0; cursor:pointer;" onclick="copyAddr()">Loading Address...</div>
         <button class="btn" id="mineBtn" onclick="toggleMining()">⚡ START MINING</button>
     </div>
 
-    <div id="hashDisplay"
-        style="background: rgba(0,0,0,0.9); color: #00ff00; font-family: 'Courier New', monospace; font-size: 11px; padding: 12px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #333; display: none; overflow: hidden; white-space: normal; word-break: break-all; min-height: 40px; box-shadow: 0 0 8px rgba(0,255,0,0.2);">
+    <div id="hashDisplay" style="background: rgba(0,0,0,0.9); color: #00ff00; font-family: 'Courier New', monospace; font-size: 11px; padding: 12px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #333; display: none; overflow: hidden; white-space: normal; word-break: break-all; min-height: 40px; box-shadow: 0 0 8px rgba(0,255,0,0.2);">
         ⚡ <span style="color: var(--kaal); font-weight: bold;">KAAL MINER:</span>
         <span id="currentHash" style="margin-left: 5px; opacity: 0.9;">Ready...</span>
     </div>
@@ -177,10 +171,8 @@
             <h3>Send KAAL</h3>
             <div id="reader" style="width:100%; border-radius:10px; overflow:hidden; background:#000;"></div>
             <button class="btn" style="background:#444;" onclick="startScan()">📸 Open Camera</button>
-            <input type="text" id="to" placeholder="Receiver Address (KAAL...)"
-                style="width:85%; padding:12px; margin-top:10px; border-radius:10px; border:1px solid #ccc;">
-            <input type="number" id="amt" placeholder="Amount"
-                style="width:85%; padding:12px; margin-top:10px; border-radius:10px; border:1px solid #ccc;">
+            <input type="text" id="to" placeholder="Receiver Address (KAAL...)" style="width:85%; padding:12px; margin-top:10px; border-radius:10px; border:1px solid #ccc;">
+            <input type="number" id="amt" placeholder="Amount" style="width:85%; padding:12px; margin-top:10px; border-radius:10px; border:1px solid #ccc;">
             <button class="btn" id="sendBtn" onclick="sendTx()">Confirm & Send</button>
             <button class="btn" style="background:gray;" onclick="closeModal('sendModal')">Close</button>
         </div>
@@ -190,9 +182,7 @@
         <div class="card" style="width:85%; margin:30px auto;">
             <h3>Your Address</h3>
             <div id="qrcode" style="padding:15px; background:white; display:inline-block; border-radius:10px;"></div>
-            <p id="recAddr"
-                style="font-size:10px; color:green; background:#f0fff0; padding:10px; border-radius:8px; word-break:break-all;">
-            </p>
+            <p id="recAddr" style="font-size:10px; color:green; background:#f0fff0; padding:10px; border-radius:8px; word-break:break-all;"></p>
             <button class="btn" onclick="closeModal('recModal')">Close</button>
         </div>
     </div>
@@ -200,8 +190,7 @@
     <div id="impModal" class="modal">
         <div class="card" style="width:85%; margin:30px auto;">
             <h3>Restore Wallet</h3>
-            <input type="text" id="impKey" placeholder="Paste Private Key Here"
-                style="width:85%; padding:12px; border-radius:10px; border:1px solid #ccc;">
+            <input type="text" id="impKey" placeholder="Paste Private Key Here" style="width:85%; padding:12px; border-radius:10px; border:1px solid #ccc;">
             <button class="btn" onclick="importWallet()">Restore & Login</button>
             <button class="btn" style="background:gray;" onclick="closeModal('impModal')">Cancel</button>
         </div>
@@ -215,7 +204,29 @@
         function openModal(id) { document.getElementById(id).style.display = 'block'; }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; if (html5QrCode) html5QrCode.stop(); }
 
-        // ✅ Naya: Network Manual Sync
+        // ✅ Encryption Logic
+        function saveEncrypted(key, password) {
+            let encrypted = "";
+            for (let i = 0; i < key.length; i++) {
+                encrypted += String.fromCharCode(key.charCodeAt(i) ^ password.charCodeAt(i % password.length));
+            }
+            localStorage.setItem('kaal_vault', btoa(encrypted));
+            localStorage.setItem('kaal_setup', 'true');
+        }
+
+        function unlockWallet() {
+            let vault = localStorage.getItem('kaal_vault');
+            if (!vault) return null;
+            let pass = prompt("🔐 Enter Wallet Password to Unlock:");
+            if (!pass) return null;
+            let decrypted = atob(vault);
+            let key = "";
+            for (let i = 0; i < decrypted.length; i++) {
+                key += String.fromCharCode(decrypted.charCodeAt(i) ^ pass.charCodeAt(i % pass.length));
+            }
+            return key;
+        }
+
         async function syncNetwork() {
             toggleMenu();
             const res = await fetch('/nodes/resolve');
@@ -225,12 +236,21 @@
         }
 
         async function init() {
-            pub = localStorage.getItem('kaal_pub'); priv = localStorage.getItem('kaal_priv');
-            if (!pub) {
-                const key = ec.genKeyPair(); priv = key.getPrivate('hex');
+            pub = localStorage.getItem('kaal_pub');
+            const setup = localStorage.getItem('kaal_setup');
+
+            if (!pub || !setup) {
+                const key = ec.genKeyPair();
+                const privateKey = key.getPrivate('hex');
                 pub = "KAAL" + ec.hash().update(key.getPublic('hex', true)).digest('hex').substring(0, 40).toUpperCase();
-                localStorage.setItem('kaal_pub', pub); localStorage.setItem('kaal_priv', priv);
+                
+                let pass = prompt("🛡️ Set a Password to Encrypt your New Wallet:");
+                if(!pass) pass = "kaal123"; 
+                
+                saveEncrypted(privateKey, pass);
+                localStorage.setItem('kaal_pub', pub);
             }
+            
             document.getElementById('addrDisp').innerText = pub;
             document.getElementById('recAddr').innerText = pub;
             new QRCode(document.getElementById("qrcode"), { text: pub, width: 140, height: 140 });
@@ -246,9 +266,18 @@
                 });
                 const info = await res.json();
 
-                // ✅ Peer Count aur P2P Status Update
                 const statsRes = await fetch('/get_stats');
                 const stats = await statsRes.json();
+                
+                // ✅ Auto-Discovery: Naye nodes mile toh register karlo
+                if (stats.nodes && stats.nodes.length > 0) {
+                    fetch('/nodes/register', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ nodes: stats.nodes })
+                    });
+                }
+
                 const pCount = document.getElementById('peerCount');
                 if (stats.nodes) {
                     pCount.innerText = `🌐 P2P: ${stats.nodes.length} Nodes`;
@@ -308,22 +337,22 @@
             }
         }
 
-        async function startScan() {
-            html5QrCode = new Html5Qrcode("reader");
-            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (text) => {
-                document.getElementById('to').value = text;
-                html5QrCode.stop();
-            });
-        }
-
         async function sendTx() {
-            const btn = document.getElementById('sendBtn');
+            const pk = unlockWallet(); // Key unlock karo
+            if(!pk) return alert("❌ Wrong Password or Cancelled!");
+
             const to = document.getElementById('to').value.trim();
             const amt = document.getElementById('amt').value;
             if (!to || !amt) return alert("Details bharo!");
+            
+            const btn = document.getElementById('sendBtn');
             btn.disabled = true; btn.innerText = "Sending...";
             try {
-                const res = await fetch('/add_tx', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender: pub, receiver: to, amount: amt, signature: priv }) });
+                const res = await fetch('/add_tx', { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ sender: pub, receiver: to, amount: amt, signature: pk }) 
+                });
                 const data = await res.json();
                 if (res.ok) { alert(data.message); closeModal('sendModal'); sync(); }
                 else { alert("Error: " + data.message); }
@@ -334,17 +363,26 @@
         function importWallet() {
             const key = document.getElementById('impKey').value.trim();
             if (key.length < 60) return alert("Galat Key!");
+            let pass = prompt("🛡️ Set a Password for this Imported Wallet:");
+            if(!pass) return alert("Password Required!");
+            
             try {
                 const pair = ec.keyFromPrivate(key);
                 const newPub = "KAAL" + ec.hash().update(pair.getPublic('hex', true)).digest('hex').substring(0, 40).toUpperCase();
-                localStorage.setItem('kaal_pub', newPub); localStorage.setItem('kaal_priv', key);
+                saveEncrypted(key, pass);
+                localStorage.setItem('kaal_pub', newPub);
                 location.reload();
             } catch (e) { alert("Fail!"); }
         }
-        function showKey() { prompt("Private Key (Secret):", priv); }
+
+        function showKey() { 
+            const pk = unlockWallet();
+            if(pk) prompt("🔐 Private Key (Keep it Secret!):", pk);
+            else alert("❌ Access Denied!");
+        }
+
         function copyAddr() { navigator.clipboard.writeText(pub); alert("Copied!"); }
         window.onload = init;
     </script>
 </body>
-
 </html>
