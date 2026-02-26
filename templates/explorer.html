@@ -108,7 +108,7 @@
 
         <div class="stat-card">
             <p>Next Halving In</p>
-            <h2 id="halvingCountdown" style="color: #ffcc00;">5000 Blocks</h2>
+            <h2 id="halvingCountdown" style="color: #ffcc00;">300000 Blocks</h2>
         </div>
 
         <div class="stat-card">
@@ -146,7 +146,7 @@
                 document.getElementById('totalSupply').innerText = data.total_supply.toFixed(2) + " KAAL";
 
                 // ✅ Halving aur Reward Logic Update
-                const halvingInterval = 5000;
+                const halvingInterval = 300000;
                 const halvings = Math.floor(totalBlocks / halvingInterval);
                 const currentReward = 40 / Math.pow(2, halvings);
                 document.getElementById('currentReward').innerText = currentReward.toFixed(2) + " KAAL";
@@ -194,3 +194,4 @@
 </body>
 
 </html>
+
