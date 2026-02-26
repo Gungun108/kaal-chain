@@ -3,6 +3,7 @@ import json
 import time
 import os
 import urllib.parse
+import requests
 from pymongo import MongoClient
 from urllib.parse import urlparse
 
@@ -11,11 +12,12 @@ class KaalChain:
         self.chain = []
         self.pending_transactions = []
         self.difficulty = 3 
+        self.nodes = set() # P2P Peers ki list
         
         # Bitcoin Logic Constants
-        self.TARGET_BLOCK_TIME = 420  # 7 Minutes (7 * 60 seconds)
-        self.HALVING_INTERVAL = 300000  # Har 300000 blocks par reward aadha
-        self.INITIAL_REWARD = 40      # Shuruati reward 40 KAAL
+        self.TARGET_BLOCK_TIME = 420  
+        self.HALVING_INTERVAL = 300000  
+        self.INITIAL_REWARD = 40      
         
         mongo_uri = os.environ.get("MONGO_URI")
         try:
@@ -41,7 +43,6 @@ class KaalChain:
             db_data = list(self.collection.find({}, {'_id': 0}).sort("index", 1))
             if db_data and len(db_data) > 0:
                 self.chain = db_data
-                # Shuruati difficulty sync
                 if 'difficulty' in self.chain[-1]:
                     self.difficulty = self.chain[-1]['difficulty']
                 else:
@@ -51,27 +52,72 @@ class KaalChain:
         except Exception as e:
             print(f"Sync Error: {e}")
 
+    # ✅ P2P: Naye Node ko register karna
+    def register_node(self, address):
+        """Miner ka IP:Port joddna (e.g., '192.168.1.5:5000')"""
+        parsed_url = urlparse(address)
+        if parsed_url.netloc:
+            self.nodes.add(parsed_url.netloc)
+        elif parsed_url.path:
+            self.nodes.add(parsed_url.path)
+
+    # ✅ P2P: Consensus Algorithm (Sabse lambi chain jeetegi)
+    def resolve_conflicts(self):
+        """Duniya bhar ke nodes se chain check karke sabse lambi wali apnana"""
+        neighbours = self.nodes
+        new_chain = None
+        max_length = len(self.chain)
+
+        for node in neighbours:
+            try:
+                response = requests.get(f'http://{node}/get_stats', timeout=5)
+                if response.status_code == 200:
+                    length = response.json()['blocks']
+                    chain = response.json()['chain'][::-1] # Reverse kyunki stats desc deta hai
+
+                    if length > max_length and self.is_chain_valid(chain):
+                        max_length = length
+                        new_chain = chain
+            except:
+                continue
+
+        if new_chain:
+            self.chain = new_chain
+            # Optional: Yahan DB update logic daal sakte ho
+            return True
+        return False
+
+    # ✅ P2P: Chain validity check karna
+    def is_chain_valid(self, chain):
+        last_block = chain[0]
+        current_index = 1
+        while current_index < len(chain):
+            block = chain[current_index]
+            if block['previous_hash'] != last_block['hash']:
+                return False
+            if not block['hash'].startswith('0' * int(block.get('difficulty', 3))):
+                return False
+            last_block = block
+            current_index += 1
+        return True
+
     def create_genesis_block(self):
         if not self.chain: 
             self.create_block(proof=100, previous_hash='0')
 
     def create_block(self, proof, previous_hash):
-        # 1. 7-Minute Average Difficulty Logic
         if len(self.chain) > 0:
             last_block = self.chain[-1]
             time_taken = time.time() - last_block['timestamp']
             
-            # Agar 7 min se jaldi mine hua toh difficulty badhao, varna kam karo
             if time_taken < self.TARGET_BLOCK_TIME:
                 self.difficulty += 0.05
             else:
                 self.difficulty = max(3, self.difficulty - 0.05)
         
-        # 2. Bitcoin Halving Logic (Har 5000 blocks par aadha)
         halvings = len(self.chain) // self.HALVING_INTERVAL
         block_reward = self.INITIAL_REWARD / (2 ** halvings)
         
-        # Max Supply 51M logic
         current_supply = sum(b.get('reward', 0) for b in self.chain)
         max_supply = 51000000
         if current_supply + block_reward > max_supply:
@@ -84,7 +130,7 @@ class KaalChain:
             'proof': proof,
             'previous_hash': previous_hash,
             'reward': block_reward,
-            'difficulty': self.difficulty # Agle block ke liye save kar rahe hain
+            'difficulty': self.difficulty 
         }
         
         encoded_block = json.dumps(block, sort_keys=True).encode()
@@ -131,13 +177,14 @@ class KaalChain:
 
     def mine_block(self, miner_address, proof):
         self.load_chain_from_db()
+        # Mining se pehle ek baar network sync karlo
+        self.resolve_conflicts()
+        
         pichla_hash = self.chain[-1]['hash'] if self.chain else '0'
         
-        # Mining se pehle dynamic reward check
         halvings = len(self.chain) // self.HALVING_INTERVAL
         current_reward = self.INITIAL_REWARD / (2 ** halvings)
         
         self.add_transaction("KAAL_NETWORK", miner_address, current_reward, "NETWORK_SIG")
         
         return self.create_block(proof, pichla_hash)
-
