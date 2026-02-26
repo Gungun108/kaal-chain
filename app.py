@@ -9,13 +9,14 @@ kaal_chain = KaalChain()
 
 @app.route('/')
 def index():
-    # Jab koi page load kare, uska IP nodes mein register kar lo
+    # ✅ Auto-Discovery: Jab koi page load kare, uska IP nodes mein register kar lo
     client_ip = request.remote_addr
     if client_ip and client_ip != "127.0.0.1":
+        # Render ya Local dono ke liye registration logic
         kaal_chain.register_node(f"http://{client_ip}:5000")
     return render_template('index.html')
 
-# ✅ Naya Route: Doosre Miners/Nodes ko list mein joddna
+# ✅ Route: Doosre Miners/Nodes ko list mein joddna
 @app.route('/nodes/register', methods=['POST'])
 def register_nodes():
     data = request.get_json()
@@ -24,15 +25,27 @@ def register_nodes():
         return "Error: Please supply a valid list of nodes", 400
     for node in nodes:
         kaal_chain.register_node(node)
-    return jsonify({'message': 'Naye nodes jodd diye gaye hain', 'total_nodes': list(kaal_chain.nodes)}), 201
+    
+    # Sabhi nodes ko ek doosre ki khabar dena (Gossip logic)
+    return jsonify({
+        'message': 'Naye nodes jodd diye gaye hain', 
+        'total_nodes': list(kaal_chain.nodes)
+    }), 201
 
-# ✅ Naya Route: Network se sabse lambi chain mangwana (Consensus)
+# ✅ Route: Network se sabse lambi chain mangwana (Consensus)
 @app.route('/nodes/resolve', methods=['GET'])
 def consensus():
+    # Sabse lambi aur valid chain ko apnana
     replaced = kaal_chain.resolve_conflicts()
     if replaced:
-        return jsonify({'message': 'Chain update ho gayi (Lambi chain mili)', 'new_chain': kaal_chain.chain}), 200
-    return jsonify({'message': 'Hamari chain hi sabse lambi aur sahi hai', 'chain': kaal_chain.chain}), 200
+        return jsonify({
+            'message': 'Chain update ho gayi (Lambi chain mili)', 
+            'new_chain': kaal_chain.chain
+        }), 200
+    return jsonify({
+        'message': 'Hamari chain hi sabse lambi aur sahi hai', 
+        'chain': kaal_chain.chain
+    }), 200
 
 @app.route('/get_info', methods=['POST'])
 def get_info():
@@ -62,7 +75,9 @@ def get_stats():
             'blocks': len(clean_chain),
             'chain': clean_chain[::-1],
             'total_supply': sum(b.get('reward', 0) for b in clean_chain),
-            'nodes': list(kaal_chain.nodes) # ✅ Ye line jodd de taaki Wallet par Nodes dikhein
+            'nodes': list(kaal_chain.nodes), # ✅ Wallet par Nodes count dikhane ke liye
+            'difficulty': kaal_chain.difficulty,
+            'halving_interval': kaal_chain.HALVING_INTERVAL # Explorer ki halving calculation ke liye
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -95,7 +110,7 @@ def mine():
     # Block mine karo
     kaal_chain.mine_block(pata, proof)
     
-    # ✅ P2P Sync: Mine karne ke baad network se check karo
+    # ✅ P2P Sync: Mine karne ke baad network se check karo taaki koi fork na bane
     kaal_chain.resolve_conflicts() 
     
     kaal_chain.load_chain_from_db() 
@@ -107,6 +122,5 @@ def mine():
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
+    # '0.0.0.0' taaki global network se connections mil sakein
     app.run(host='0.0.0.0', port=port)
-
-
