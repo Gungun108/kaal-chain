@@ -63,20 +63,44 @@ class KaalChain:
         except Exception as e:
             print(f"Sync Error: {e}")
 
-    # ✅ UTXO: Poori chain ko scan karke valid coins ki list banana
+    # ✅ HYBRID UTXO Logic: Purane Rewards aur Transactions ko balance mein joddna
     def rebuild_utxo_set(self):
         self.utxo_set = {}
         for block in self.chain:
+            # 1. Block Reward ko UTXO mein joddna (Miner track karne ke liye)
+            # Agar reward transaction list mein nahi hai, toh use block data se uthayenge
+            reward_id = f"REWARD_BLOCK_{block['index']}_{block['timestamp']}"
+            
+            # Genesis block aur normal blocks ke liye miner dhoondna
+            miner_addr = "GENESIS"
             for tx in block.get('transactions', []):
-                tx_id = tx.get('signature', str(tx['timestamp']))
-                # Pehle sender ka UTXO hatana (spent)
-                if tx['sender'] != "KAAL_NETWORK":
-                    # Simple model: poorani transaction reference base par delete
-                    pass 
-                # Naya UTXO joddna (unspent)
+                if tx['sender'] == "KAAL_NETWORK":
+                    miner_addr = tx['receiver']
+                    break
+            
+            if block.get('reward', 0) > 0:
+                self.utxo_set[reward_id] = {
+                    'receiver': miner_addr,
+                    'amount': float(block['reward'])
+                }
+
+            # 2. Normal Transactions ko UTXO mein joddna
+            for tx in block.get('transactions', []):
+                if tx['sender'] == "KAAL_NETWORK": continue # Rewards pehle hi add ho gaye
+                
+                tx_id = tx.get('signature', f"TX_{tx['timestamp']}")
+                
+                # Naya UTXO (Receiver ke liye)
                 self.utxo_set[tx_id] = {
                     'receiver': tx['receiver'],
                     'amount': float(tx['amount'])
+                }
+                
+                # Spent Logic (Sender ka balance minus karne ke liye hybrid approach)
+                spent_key = f"SPENT_{tx_id}_{tx['sender']}"
+                self.utxo_set[spent_key] = {
+                    'receiver': tx['sender'],
+                    'amount': -float(tx['amount'])
                 }
 
     def register_node(self, address):
