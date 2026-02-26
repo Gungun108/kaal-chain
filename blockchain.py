@@ -10,7 +10,12 @@ class KaalChain:
     def __init__(self):
         self.chain = []
         self.pending_transactions = []
-        self.difficulty = 3 #
+        self.difficulty = 3 
+        
+        # Bitcoin Logic Constants
+        self.TARGET_BLOCK_TIME = 420  # 7 Minutes (7 * 60 seconds)
+        self.HALVING_INTERVAL = 5000  # Har 5000 blocks par reward aadha
+        self.INITIAL_REWARD = 40      # Shuruati reward 40 KAAL
         
         mongo_uri = os.environ.get("MONGO_URI")
         try:
@@ -33,11 +38,14 @@ class KaalChain:
 
     def load_chain_from_db(self):
         try:
-            # Atomic Load: Pehle data variable mein lo, fir memory update karo
             db_data = list(self.collection.find({}, {'_id': 0}).sort("index", 1))
             if db_data and len(db_data) > 0:
                 self.chain = db_data
-                self.difficulty = 3 + (len(self.chain) // 10000) * 0.5
+                # Shuruati difficulty sync
+                if 'difficulty' in self.chain[-1]:
+                    self.difficulty = self.chain[-1]['difficulty']
+                else:
+                    self.difficulty = 3 + (len(self.chain) // 10000) * 0.5
             elif not self.chain:
                 self.create_genesis_block()
         except Exception as e:
@@ -48,12 +56,26 @@ class KaalChain:
             self.create_block(proof=100, previous_hash='0')
 
     def create_block(self, proof, previous_hash):
-        self.difficulty = 3 + (len(self.chain) // 10000) * 0.5
+        # 1. 7-Minute Average Difficulty Logic
+        if len(self.chain) > 0:
+            last_block = self.chain[-1]
+            time_taken = time.time() - last_block['timestamp']
+            
+            # Agar 7 min se jaldi mine hua toh difficulty badhao, varna kam karo
+            if time_taken < self.TARGET_BLOCK_TIME:
+                self.difficulty += 0.05
+            else:
+                self.difficulty = max(3, self.difficulty - 0.05)
+        
+        # 2. Bitcoin Halving Logic (Har 5000 blocks par aadha)
+        halvings = len(self.chain) // self.HALVING_INTERVAL
+        block_reward = self.INITIAL_REWARD / (2 ** halvings)
         
         # Max Supply 51M logic
         current_supply = sum(b.get('reward', 0) for b in self.chain)
         max_supply = 51000000
-        block_reward = 40 if current_supply + 40 <= max_supply else 0
+        if current_supply + block_reward > max_supply:
+            block_reward = 0
         
         block = {
             'index': len(self.chain) + 1,
@@ -61,7 +83,8 @@ class KaalChain:
             'transactions': list(self.pending_transactions),
             'proof': proof,
             'previous_hash': previous_hash,
-            'reward': block_reward #
+            'reward': block_reward,
+            'difficulty': self.difficulty # Agle block ke liye save kar rahe hain
         }
         
         encoded_block = json.dumps(block, sort_keys=True).encode()
@@ -71,7 +94,6 @@ class KaalChain:
         self.chain.append(block)
         
         try:
-            # FIX: Pura delete karne ke bajaye sirf naya block insert karo
             self.collection.insert_one(block)
         except: 
             pass
@@ -89,12 +111,10 @@ class KaalChain:
         return round(bal, 2)
 
     def add_transaction(self, sender, receiver, amount, signature):
-        # Double Entry Check
         for tx in self.pending_transactions:
             if tx['signature'] == signature:
                 return False, "Double transaction!"
 
-        # Balance Check
         if sender != "KAAL_NETWORK":
             current_balance = self.get_balance(sender)
             if current_balance < float(amount):
@@ -110,13 +130,13 @@ class KaalChain:
         return True, "Success"
 
     def mine_block(self, miner_address, proof):
-        # Naya block mine karne se pehle fresh sync
         self.load_chain_from_db()
         pichla_hash = self.chain[-1]['hash'] if self.chain else '0'
         
-        current_supply = sum(b.get('reward', 0) for b in self.chain)
-        if current_supply + 40 <= 51000000:
-            # 40 KAAL reward logic
-            self.add_transaction("KAAL_NETWORK", miner_address, 40, "NETWORK_SIG")
+        # Mining se pehle dynamic reward check
+        halvings = len(self.chain) // self.HALVING_INTERVAL
+        current_reward = self.INITIAL_REWARD / (2 ** halvings)
+        
+        self.add_transaction("KAAL_NETWORK", miner_address, current_reward, "NETWORK_SIG")
         
         return self.create_block(proof, pichla_hash)
