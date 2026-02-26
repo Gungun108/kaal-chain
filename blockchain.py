@@ -56,12 +56,15 @@ class KaalChain:
 
     # ✅ P2P: Naye Node ko register karna
     def register_node(self, address):
-        """Miner ka IP:Port joddna (e.g., '192.168.1.5:5000')"""
+    """Naye node ko list mein joddna aur duplicate hatana"""
+    if "onrender.com" in address:
+        self.nodes.add("kaal-chain.onrender.com")
+    else:
+        # IP ya URL format sahi karke save karna
         parsed_url = urlparse(address)
-        if parsed_url.netloc:
-            self.nodes.add(parsed_url.netloc)
-        elif parsed_url.path:
-            self.nodes.add(parsed_url.path)
+        node_address = parsed_url.netloc if parsed_url.netloc else parsed_url.path
+        if node_address:
+            self.nodes.add(node_address)
 
     # ✅ P2P: Consensus Algorithm (Sabse lambi chain jeetegi)
     def resolve_conflicts(self):
@@ -190,4 +193,5 @@ class KaalChain:
         self.add_transaction("KAAL_NETWORK", miner_address, current_reward, "NETWORK_SIG")
         
         return self.create_block(proof, pichla_hash)
+
 
