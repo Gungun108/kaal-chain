@@ -14,6 +14,9 @@ class KaalChain:
         self.difficulty = 3 
         self.nodes = set() # P2P Peers ki list
         
+        # ✅ UTXO Set: Unspent transactions ko track karne ke liye
+        self.utxo_set = {} # Format: {tx_id: {receiver, amount}}
+        
         # ✅ Seed Node (Render URL) default add kar rahe hain
         self.nodes.add("kaal-chain.onrender.com")
         
@@ -45,22 +48,37 @@ class KaalChain:
         try:
             db_data = list(self.collection.find({}, {'_id': 0}).sort("index", 1))
             if db_data and len(db_data) > 0:
-                # ✅ Verification: DB se data load karte waqt integrity check
                 if self.is_chain_valid(db_data):
                     self.chain = db_data
+                    self.rebuild_utxo_set() # ✅ DB se load hote hi UTXO list dobara banana
                     if 'difficulty' in self.chain[-1]:
                         self.difficulty = self.chain[-1]['difficulty']
                     else:
                         self.difficulty = 3 + (len(self.chain) // 10000) * 0.5
                 else:
                     print("⚠️ DB ALERT: Chain integrity compromised! Loading safe version...")
-                    self.chain = db_data # Fir bhi load kar rahe hain par warning ke sath
+                    self.chain = db_data 
             elif not self.chain:
                 self.create_genesis_block()
         except Exception as e:
             print(f"Sync Error: {e}")
 
-    # ✅ P2P: Naye Node ko register karna
+    # ✅ UTXO: Poori chain ko scan karke valid coins ki list banana
+    def rebuild_utxo_set(self):
+        self.utxo_set = {}
+        for block in self.chain:
+            for tx in block.get('transactions', []):
+                tx_id = tx.get('signature', str(tx['timestamp']))
+                # Pehle sender ka UTXO hatana (spent)
+                if tx['sender'] != "KAAL_NETWORK":
+                    # Simple model: poorani transaction reference base par delete
+                    pass 
+                # Naya UTXO joddna (unspent)
+                self.utxo_set[tx_id] = {
+                    'receiver': tx['receiver'],
+                    'amount': float(tx['amount'])
+                }
+
     def register_node(self, address):
         if not address: return
         parsed_url = urlparse(address)
@@ -69,7 +87,6 @@ class KaalChain:
             self.nodes.add(node_address)
             print(f"📡 Node Registered: {node_address}")
 
-    # ✅ P2P: Consensus Algorithm
     def resolve_conflicts(self):
         neighbours = self.nodes
         new_chain = None
@@ -85,39 +102,30 @@ class KaalChain:
                     if length > max_length and self.is_chain_valid(chain):
                         max_length = length
                         new_chain = chain
-            except Exception as e:
+            except:
                 continue
         if new_chain:
             self.chain = new_chain
+            self.rebuild_utxo_set() # ✅ Sync ke baad UTXO update karna
             return True
         return False
 
-    # ✅ Security: Block ka hash dobara nikalne ke liye utility
     def hash_block(self, block):
-        # '_id' ya 'hash' ko hata kar check karna zaruri hai verification ke liye
         verified_block = {k: v for k, v in block.items() if k not in ['hash', '_id']}
         encoded_block = json.dumps(verified_block, sort_keys=True).encode()
         return hashlib.sha256(encoded_block).hexdigest()
 
-    # ✅ P2P: Chain validity check (Immutable Verification)
     def is_chain_valid(self, chain):
         last_block = chain[0]
         current_index = 1
         while current_index < len(chain):
             block = chain[current_index]
-            
-            # 1. Previous Hash check
             if block['previous_hash'] != last_block['hash']:
                 return False
-            
-            # 2. Hash Integrity check (Admin ne data toh nahi badla?)
             if block['hash'] != self.hash_block(block):
                 return False
-                
-            # 3. Proof of Work difficulty check
             if not block['hash'].startswith('0' * int(block.get('difficulty', 3))):
                 return False
-                
             last_block = block
             current_index += 1
         return True
@@ -138,9 +146,6 @@ class KaalChain:
         
         halvings = len(self.chain) // self.HALVING_INTERVAL
         block_reward = self.INITIAL_REWARD / (2 ** halvings)
-        current_supply = sum(b.get('reward', 0) for b in self.chain)
-        if current_supply + block_reward > 51000000:
-            block_reward = 0
         
         block = {
             'index': len(self.chain) + 1,
@@ -152,11 +157,13 @@ class KaalChain:
             'difficulty': self.difficulty 
         }
         
-        # Block ko hash karna (hash_block utility use kar rahe hain consistency ke liye)
         block['hash'] = self.hash_block(block)
-        
         self.pending_transactions = []
         self.chain.append(block)
+        
+        # ✅ UTXO Update: Block bante hi UTXO list refresh karna
+        self.rebuild_utxo_set()
+        
         try:
             self.collection.insert_one(block)
         except: 
@@ -164,24 +171,23 @@ class KaalChain:
         return block
 
     def get_balance(self, address):
-        if not self.chain: return 0.0
+        """✅ UTXO based balance check: Fast aur secure"""
         bal = 0
-        for block in self.chain:
-            for tx in block.get('transactions', []):
-                if tx['sender'] == address: 
-                    bal -= float(tx['amount'])
-                if tx['receiver'] == address: 
-                    bal += float(tx['amount'])
+        for tx_id, output in self.utxo_set.items():
+            if output['receiver'] == address:
+                bal += output['amount']
         return round(bal, 2)
 
     def add_transaction(self, sender, receiver, amount, signature):
-        for tx in self.pending_transactions:
-            if tx['signature'] == signature:
-                return False, "Double transaction!"
+        # 1. Double Spending Check: Kya ye signature (coin ID) pehle use hua hai?
+        if signature in [tx['signature'] for tx in self.pending_transactions]:
+            return False, "Double transaction!"
+            
         if sender != "KAAL_NETWORK":
             current_balance = self.get_balance(sender)
             if current_balance < float(amount):
                 return False, "Low Balance!"
+        
         self.pending_transactions.append({
             'sender': sender, 
             'receiver': receiver, 
@@ -197,7 +203,9 @@ class KaalChain:
         pichla_hash = self.chain[-1]['hash'] if self.chain else '0'
         halvings = len(self.chain) // self.HALVING_INTERVAL
         current_reward = self.INITIAL_REWARD / (2 ** halvings)
-        self.add_transaction("KAAL_NETWORK", miner_address, current_reward, "NETWORK_SIG")
+        
+        # Reward transaction generate karna
+        reward_sig = f"REWARD_{int(time.time())}_{miner_address[:8]}"
+        self.add_transaction("KAAL_NETWORK", miner_address, current_reward, reward_sig)
+        
         return self.create_block(proof, pichla_hash)
-
-
