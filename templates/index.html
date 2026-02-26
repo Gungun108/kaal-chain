@@ -43,8 +43,9 @@
         <button class="btn" id="mineBtn" onclick="toggleMining()">⚡ START MINING</button>
     </div>
 
-    <div id="hashDisplay" style="background:#000; color:#00ff00; font-family:'Courier New', monospace; font-size:11px; padding:12px; border-radius:12px; margin-bottom:10px; border:1px solid #333; display:none; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
-        ⚡ <span style="color:var(--kaal); font-weight:bold;">KAAL MINER:</span> <span id="currentHash">Ready...</span>
+    <div id="hashDisplay" style="background:#000; color:#00ff00; font-family:'Courier New', monospace; font-size:12px; padding:15px; border-radius:12px; margin-bottom:10px; border:1px solid #333; display:none; overflow:hidden; word-break:break-all; min-height:40px; line-height:1.4; box-shadow: inset 0 0 10px #00ff0033;">
+    ⚡ <span style="color:var(--kaal); font-weight:bold;">KAAL MINER:</span> <br>
+    <span id="currentHash" style="opacity:0.8;">Ready...</span>
     </div>
 
     <div class="activity-section">
@@ -156,7 +157,7 @@
                 const msg = (window.last_proof || 100) + "" + n;
                 const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg));
                 const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-                hashText.innerText = hex; // ✅ Real-time hash display
+                hashText.innerText = hex.substring(0, 45) + "...";
                 if(hex.startsWith('0'.repeat(window.diff || 3))) {
                     const res = await fetch('/mine', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({address: pub, proof: n}) });
                     if(res.ok) { await sync(); n = Math.floor(Math.random() * 1000000); }
@@ -203,3 +204,4 @@
     </script>
 </body>
 </html>
+
