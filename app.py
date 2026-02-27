@@ -7,7 +7,7 @@ import requests
 # Server ko shuru karna
 app = Flask(__name__)
 
-# ✅ WebSocket Setup
+# ✅ WebSocket Setup: Flask app ko SocketIO se wrap karna
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Blockchain instance banana aur socketio link karna
@@ -146,7 +146,16 @@ def mine():
     if not pata or not proof:
         return jsonify({'message': 'Data miss hai'}), 400
 
-    kaal_chain.mine_block(pata, proof)
+    # ✅ STEP 1: Block mine karo
+    block = kaal_chain.mine_block(pata, proof)
+    
+    # ✅ STEP 2: UTXO Rebuild taaki balance update ho jaye
+    kaal_chain.rebuild_utxo_set()
+    
+    # ✅ STEP 3: WebSocket se frontend ko batao ki balance check kare
+    socketio.emit('new_block', {'index': block['index'], 'miner': pata}, broadcast=True)
+    
+    # ✅ STEP 4: Network sync
     kaal_chain.resolve_conflicts() 
     kaal_chain.sync_with_mongodb()
 
