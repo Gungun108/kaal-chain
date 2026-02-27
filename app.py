@@ -58,8 +58,11 @@ def get_info():
     if not pata:
         return jsonify({'error': 'Address gayab hai'}), 400
     
-    kaal_chain.load_chain_from_local_db() 
-    kaal_chain.rebuild_utxo_set()
+    # ✅ FIX: Har baar DB load karne ki bajaye current memory state use karega agar chain loaded hai
+    if not kaal_chain.chain:
+        kaal_chain.load_chain_from_local_db() 
+    
+    kaal_chain.rebuild_utxo_set() # Balance hamesha live UTXO se aayega
     
     return jsonify({
         'balance': kaal_chain.get_balance(pata),
@@ -70,8 +73,8 @@ def get_info():
 @app.route('/get_stats')
 def get_stats():
     try:
+        # ✅ Pehle Smart Sync (Reverse Sync logic blockchain.py mein hai)
         kaal_chain.sync_with_mongodb()
-        kaal_chain.load_chain_from_local_db()
         
         clean_chain = []
         for block in kaal_chain.chain:
@@ -93,7 +96,7 @@ def get_stats():
 @app.route('/add_tx', methods=['POST'])
 def add_tx():
     data = request.get_json()
-    kaal_chain.load_chain_from_local_db() 
+    # Transaction ke liye live balance verification
     kaal_chain.rebuild_utxo_set()
     
     success, msg = kaal_chain.add_transaction(
@@ -104,7 +107,6 @@ def add_tx():
     )
     
     if success:
-        # ✅ Nayi transaction aate hi network ko alert dena
         socketio.emit('new_tx', {'sender': data.get('sender'), 'amount': data.get('amount')}, broadcast=True)
         
     return jsonify({'message': msg}), 200 if success else 400
@@ -125,15 +127,12 @@ def mine():
     # Block mine karo
     kaal_chain.mine_block(pata, proof)
     
-    # P2P Sync
+    # ✅ P2P Sync & Resolve
     kaal_chain.resolve_conflicts() 
     
-    # Refresh local memory
-    kaal_chain.load_chain_from_local_db() 
-    kaal_chain.rebuild_utxo_set()
+    # ✅ Cloud ko turant update karo taaki balance lock ho jaye
+    kaal_chain.sync_with_mongodb()
 
-    # ✅ WebSocket Announcement (Already create_block ke andar broadcast logic laga hua hai)
-    
     return jsonify({
         'message': 'Mined Success & Network Synced', 
         'new_balance': kaal_chain.get_balance(pata)
@@ -141,5 +140,4 @@ def mine():
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
-    # ✅ Ab app.run ki jagah socketio.run use karna hoga
     socketio.run(app, host='0.0.0.0', port=port)
