@@ -17,9 +17,13 @@ class KaalChain:
         self.utxo_set = {}
         self.socketio = None 
         
+        # ✅ KAAL ECONOMY: Fixed Addresses
+        self.ADMIN_WALLET = "KAALF74F111A8FFD6242471BA4A83F6B776A354C56A0"
+        self.DAO_WALLET = "KAAL57D57AF3FBAC2A0756AEB75CBAF6559610E78021"
+        self.MINIMUM_FEE = 0.05 
+        
         self.init_local_db()
         
-        # ✅ KAAL CORE: Bootnodes (Networking entry points)
         self.bootnodes = ["kaal-chain.onrender.com"]
         for node in self.bootnodes:
             self.nodes.add(node)
@@ -27,8 +31,6 @@ class KaalChain:
         self.TARGET_BLOCK_TIME = 420  
         self.HALVING_INTERVAL = 300000  
         self.INITIAL_REWARD = 40      
-        
-        # ✅ Bitcoin Style: Har 2016 blocks ke baad difficulty badlegi
         self.ADJUSTMENT_WINDOW = 2016 
         
         mongo_uri = os.environ.get("MONGO_URI")
@@ -48,14 +50,13 @@ class KaalChain:
             self.load_chain_from_local_db()
             self.sync_with_mongodb()
             
-            # ✅ KAAL CORE: Startup par Gossip chalao (With Safety Check)
             try:
                 print("⏳ Starting Peer Discovery...")
                 self.gossip_with_peers()
             except Exception as gossip_err:
                 print(f"⚠️ Gossip delayed: {gossip_err}")
             
-            print("✅ KAAL CHAIN: Bitcoin Style Epoch & P2P Core Active!")
+            print("✅ KAAL CHAIN: Economic Core Active!")
         except Exception as e:
             print(f"❌ DB Error: {e}")
             if not self.chain:
@@ -63,9 +64,7 @@ class KaalChain:
                 if not self.chain:
                     self.create_genesis_block()
 
-    # ✅ KAAL CORE: Gossip Protocol (Peer Discovery)
     def gossip_with_peers(self):
-        """P2P: Bina cloud ke naye nodes dhoondna"""
         new_peers = set()
         for peer in list(self.nodes):
             try:
@@ -80,12 +79,8 @@ class KaalChain:
             except:
                 continue
         self.nodes.update(new_peers)
-        if new_peers:
-            print(f"🔱 Gossip: {len(new_peers)} naye peers mile!")
 
-    # ✅ KAAL CORE: Direct P2P Broadcast
     def broadcast_block(self, block):
-        """Naya block saare padosi nodes ko direct bhejna"""
         for peer in list(self.nodes):
             if "onrender.com" in peer: continue 
             try:
@@ -113,7 +108,6 @@ class KaalChain:
             print("ℹ️ Local DB is empty.")
 
     def sync_with_mongodb(self):
-        """Two-Way Smart Sync"""
         try:
             db_data = list(self.collection.find({}, {'_id': 0}).sort("index", 1))
             if db_data and len(db_data) > len(self.chain):
@@ -191,7 +185,6 @@ class KaalChain:
         return hashlib.sha256(encoded_block).hexdigest()
 
     def is_chain_valid(self, chain):
-        """Hard Integrity Check: Admin tamper-proof"""
         if not chain: return False
         last_block = chain[0]
         current_index = 1
@@ -210,7 +203,6 @@ class KaalChain:
             self.create_block(proof=100, previous_hash='0')
 
     def create_block(self, proof, previous_hash):
-        # ✅ Bitcoin Style Adjustment: Har 2016 blocks par
         if len(self.chain) > 0 and len(self.chain) % self.ADJUSTMENT_WINDOW == 0:
             start_block = self.chain[-self.ADJUSTMENT_WINDOW]
             last_block = self.chain[-1]
@@ -243,12 +235,9 @@ class KaalChain:
         self.chain.append(block)
         self.rebuild_utxo_set()
         
-        # ✅ FIX: Ye logic function ke andar (Indented) hona chahiye
         if self.socketio:
-            # ❌ Purana: self.socketio.emit(..., broadcast=True) hata diya
             self.socketio.emit('new_block', {'index': block['index'], 'hash': block['hash']})
         
-        # ✅ KAAL CORE: Direct P2P Broadcast
         self.broadcast_block(block)
         
         try:
@@ -265,13 +254,32 @@ class KaalChain:
                 bal += output['amount']
         return round(bal, 2)
 
-    def add_transaction(self, sender, receiver, amount, signature):
+    def add_transaction(self, sender, receiver, amount, signature, tx_type="standard", fee=0.05):
+        """Standard Transfer: 70% DAO, 30% Admin | Contract: 100% Admin"""
         if signature in [tx['signature'] for tx in self.pending_transactions]:
             return False, "Double transaction!"
+            
+        total_needed = float(amount) + float(fee)
         if sender != "KAAL_NETWORK":
-            if self.get_balance(sender) < float(amount):
-                return False, "Low Balance!"
+            if self.get_balance(sender) < total_needed:
+                return False, "Low Balance for amount + fee!"
         
+        # Fee Splitting Logic
+        if sender != "KAAL_NETWORK" and float(fee) > 0:
+            if tx_type == "contract":
+                # 100% Admin
+                self.pending_transactions.append({
+                    'sender': sender, 'receiver': self.ADMIN_WALLET, 
+                    'amount': float(fee), 'timestamp': time.time(), 
+                    'signature': f"FEE_CONT_{signature[:8]}"
+                })
+            else:
+                # 70% DAO, 30% Admin
+                dao_s = round(float(fee) * 0.70, 4)
+                admin_s = round(float(fee) * 0.30, 4)
+                self.pending_transactions.append({'sender': sender, 'receiver': self.DAO_WALLET, 'amount': dao_s, 'timestamp': time.time(), 'signature': f"FEE_DAO_{signature[:8]}"})
+                self.pending_transactions.append({'sender': sender, 'receiver': self.ADMIN_WALLET, 'amount': admin_s, 'timestamp': time.time(), 'signature': f"FEE_ADM_{signature[:8]}"})
+
         self.pending_transactions.append({
             'sender': sender, 'receiver': receiver, 'amount': float(amount), 
             'timestamp': time.time(), 'signature': signature
