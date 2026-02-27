@@ -15,11 +15,8 @@ class KaalChain:
         self.difficulty = 3 
         self.nodes = set()
         self.utxo_set = {}
-        
-        # ✅ WebSocket support ke liye placeholder (app.py se link hoga)
         self.socketio = None 
         
-        # ✅ Local SQLite Setup
         self.init_local_db()
         
         self.nodes.add("kaal-chain.onrender.com")
@@ -27,7 +24,6 @@ class KaalChain:
         self.HALVING_INTERVAL = 300000  
         self.INITIAL_REWARD = 40      
         
-        # MongoDB Setup
         mongo_uri = os.environ.get("MONGO_URI")
         try:
             if mongo_uri:
@@ -42,12 +38,12 @@ class KaalChain:
             self.db = self.mongo_client.kaal_db
             self.collection = self.db.ledger
             
-            # ✅ Pehle Cloud se sync karo taaki data udd na jaye
-            self.sync_with_mongodb()
-            # ✅ Phir local load karo
+            # ✅ Step 1: Pehle Local Load karo taaki current state pata chale
             self.load_chain_from_local_db()
+            # ✅ Step 2: Phir Smart Sync chalao (Jhatka rokne ke liye)
+            self.sync_with_mongodb()
             
-            print("✅ Database Systems Initialized & Synced!")
+            print("✅ Database Systems Initialized & Smart-Synced!")
         except Exception as e:
             print(f"❌ DB Error: {e}")
             if not self.chain:
@@ -58,21 +54,14 @@ class KaalChain:
     def init_local_db(self):
         self.conn = sqlite3.connect('kaalchain_local.db', check_same_thread=False)
         self.cursor = self.conn.cursor()
-        self.cursor.execute('''
-            CREATE TABLE IF NOT EXISTS blocks (
-                idx INTEGER PRIMARY KEY,
-                data TEXT NOT NULL
-            )
-        ''')
+        self.cursor.execute('CREATE TABLE IF NOT EXISTS blocks (idx INTEGER PRIMARY KEY, data TEXT NOT NULL)')
         self.conn.commit()
 
     def load_chain_from_local_db(self):
-        """Disk se turant chain load karna"""
         self.cursor.execute('SELECT data FROM blocks ORDER BY idx ASC')
         rows = self.cursor.fetchall()
         if rows:
             self.chain = [json.loads(row[0]) for row in rows]
-            # Difficulty ko last block se uthao
             if 'difficulty' in self.chain[-1]:
                 self.difficulty = self.chain[-1]['difficulty']
             self.rebuild_utxo_set()
@@ -81,16 +70,31 @@ class KaalChain:
             print("ℹ️ Local DB is empty.")
 
     def sync_with_mongodb(self):
-        """Cloud se data khinch kar Local DB ko bhar dena"""
+        """Two-Way Sync: Balance jump ko rokne ke liye"""
         try:
             db_data = list(self.collection.find({}, {'_id': 0}).sort("index", 1))
-            if db_data:
-                # Agar cloud par data hai, toh use local mein save karo (Replacement logic)
-                for block in db_data:
-                    self.save_block_locally(block)
-                print(f"✅ Synced {len(db_data)} blocks from Cloud to Local.")
+            
+            # Case 1: Cloud par zyada data hai (Normal Sync)
+            if db_data and len(db_data) > len(self.chain):
+                if self.is_chain_valid(db_data):
+                    for block in db_data:
+                        self.save_block_locally(block)
+                    self.chain = db_data
+                    self.rebuild_utxo_set()
+                    print(f"✅ Cloud Sync Success: {len(self.chain)} blocks.")
+            
+            # Case 2: Local par zyada data hai (Reverse Sync)
+            # Ye wahi fix hai jo balance 3080 se 3000 hone se rokega
+            elif len(self.chain) > len(db_data):
+                missed_blocks = self.chain[len(db_data):]
+                for b in missed_blocks:
+                    self.collection.insert_one(b.copy())
+                print(f"⬆️ Reverse Sync: Uploaded {len(missed_blocks)} blocks to Cloud.")
+                
+            elif not self.chain and not db_data:
+                self.create_genesis_block()
         except Exception as e:
-            print(f"Cloud Sync Error: {e}")
+            print(f"Sync Error: {e}")
 
     def save_block_locally(self, block):
         block_json = json.dumps(block)
@@ -107,10 +111,8 @@ class KaalChain:
                 if tx['sender'] == "KAAL_NETWORK":
                     miner_addr = tx['receiver']
                     break
-            
             if block.get('reward', 0) > 0:
                 self.utxo_set[reward_id] = {'receiver': miner_addr, 'amount': float(block['reward'])}
-
             for tx in block.get('transactions', []):
                 if tx['sender'] == "KAAL_NETWORK": continue
                 tx_id = tx.get('signature', f"TX_{tx['timestamp']}")
@@ -140,8 +142,7 @@ class KaalChain:
                     if length > max_length and self.is_chain_valid(chain):
                         max_length = length
                         new_chain = chain
-            except:
-                continue
+            except: continue
         if new_chain:
             self.chain = new_chain
             for block in self.chain: self.save_block_locally(block)
@@ -155,6 +156,7 @@ class KaalChain:
         return hashlib.sha256(encoded_block).hexdigest()
 
     def is_chain_valid(self, chain):
+        if not chain: return False
         last_block = chain[0]
         current_index = 1
         while current_index < len(chain):
@@ -172,7 +174,6 @@ class KaalChain:
             self.create_block(proof=100, previous_hash='0')
 
     def create_block(self, proof, previous_hash):
-        # ✅ Smooth Difficulty adjustment: 0.05 se ghatakar 0.01 kar diya
         if len(self.chain) > 0:
             last_block = self.chain[-1]
             time_taken = time.time() - last_block['timestamp']
@@ -197,20 +198,16 @@ class KaalChain:
         block['hash'] = self.hash_block(block)
         self.pending_transactions = []
         
-        # ✅ Save locally first
         self.save_block_locally(block)
         self.chain.append(block)
         self.rebuild_utxo_set()
         
-        # WebSocket Announcement
         if self.socketio:
             self.socketio.emit('new_block', {'index': block['index'], 'hash': block['hash']}, broadcast=True)
         
         try:
-            # ✅ Cloud save for persistence
             self.collection.insert_one(block.copy())
-        except: 
-            pass
+        except: pass
         return block
 
     def get_balance(self, address):
