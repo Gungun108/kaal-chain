@@ -19,7 +19,11 @@ class KaalChain:
         
         self.init_local_db()
         
-        self.nodes.add("kaal-chain.onrender.com")
+        # ✅ KAAL CORE: Bootnodes (Networking entry points)
+        self.bootnodes = ["kaal-chain.onrender.com"]
+        for node in self.bootnodes:
+            self.nodes.add(node)
+
         self.TARGET_BLOCK_TIME = 420  
         self.HALVING_INTERVAL = 300000  
         self.INITIAL_REWARD = 40      
@@ -44,13 +48,47 @@ class KaalChain:
             self.load_chain_from_local_db()
             self.sync_with_mongodb()
             
-            print("✅ KAAL CHAIN: Bitcoin Style Epoch Adjustment Active!")
+            # ✅ KAAL CORE: Startup par Gossip chalao peers dhoondne ke liye
+            self.gossip_with_peers()
+            
+            print("✅ KAAL CHAIN: Bitcoin Style Epoch & P2P Core Active!")
         except Exception as e:
             print(f"❌ DB Error: {e}")
             if not self.chain:
                 self.load_chain_from_local_db()
                 if not self.chain:
                     self.create_genesis_block()
+
+    # ✅ KAAL CORE: Gossip Protocol (Peer Discovery)
+    def gossip_with_peers(self):
+        """P2P: Bina cloud ke naye nodes dhoondna"""
+        new_peers = set()
+        for peer in list(self.nodes):
+            try:
+                url = f"https://{peer}/get_stats" if "onrender.com" in peer else f"http://{peer}/get_stats"
+                response = requests.get(url, timeout=3)
+                if response.status_code == 200:
+                    data = response.json()
+                    peers_from_node = data.get('nodes', [])
+                    for p in peers_from_node:
+                        if p not in self.nodes:
+                            new_peers.add(p)
+            except:
+                continue
+        self.nodes.update(new_peers)
+        if new_peers:
+            print(f"🔱 Gossip: {len(new_peers)} naye peers mile!")
+
+    # ✅ KAAL CORE: Direct P2P Broadcast
+    def broadcast_block(self, block):
+        """Naya block saare padosi nodes ko direct bhejna"""
+        for peer in list(self.nodes):
+            if "onrender.com" in peer: continue 
+            try:
+                url = f"http://{peer}/add_block_p2p"
+                requests.post(url, json=block, timeout=2)
+            except:
+                continue
 
     def init_local_db(self):
         self.conn = sqlite3.connect('kaalchain_local.db', check_same_thread=False)
@@ -175,7 +213,6 @@ class KaalChain:
             actual_time = last_block['timestamp'] - start_block['timestamp']
             expected_time = self.ADJUSTMENT_WINDOW * self.TARGET_BLOCK_TIME
             
-            # Adjustment window: Bitcoin ki tarah 1/4x se 4x tak adjust
             if actual_time < expected_time / 2:
                 self.difficulty += 1
             elif actual_time > expected_time * 2:
@@ -204,6 +241,9 @@ class KaalChain:
         
         if self.socketio:
             self.socketio.emit('new_block', {'index': block['index'], 'hash': block['hash']}, broadcast=True)
+        
+        # ✅ KAAL CORE: Direct P2P Broadcast (MongoDB bypass)
+        self.broadcast_block(block)
         
         try:
             self.collection.insert_one(block.copy())
