@@ -24,6 +24,9 @@ class KaalChain:
         self.HALVING_INTERVAL = 300000  
         self.INITIAL_REWARD = 40      
         
+        # ✅ Bitcoin Style: Har 2016 blocks ke baad difficulty badlegi
+        self.ADJUSTMENT_WINDOW = 2016 
+        
         mongo_uri = os.environ.get("MONGO_URI")
         try:
             if mongo_uri:
@@ -38,12 +41,10 @@ class KaalChain:
             self.db = self.mongo_client.kaal_db
             self.collection = self.db.ledger
             
-            # ✅ Step 1: Pehle Local Load karo taaki current state pata chale
             self.load_chain_from_local_db()
-            # ✅ Step 2: Phir Smart Sync chalao (Jhatka rokne ke liye)
             self.sync_with_mongodb()
             
-            print("✅ Database Systems Initialized & Smart-Synced!")
+            print("✅ KAAL CHAIN: Bitcoin Style Epoch Adjustment Active!")
         except Exception as e:
             print(f"❌ DB Error: {e}")
             if not self.chain:
@@ -70,27 +71,19 @@ class KaalChain:
             print("ℹ️ Local DB is empty.")
 
     def sync_with_mongodb(self):
-        """Two-Way Sync: Balance jump ko rokne ke liye"""
+        """Two-Way Smart Sync"""
         try:
             db_data = list(self.collection.find({}, {'_id': 0}).sort("index", 1))
-            
-            # Case 1: Cloud par zyada data hai (Normal Sync)
             if db_data and len(db_data) > len(self.chain):
                 if self.is_chain_valid(db_data):
                     for block in db_data:
                         self.save_block_locally(block)
                     self.chain = db_data
                     self.rebuild_utxo_set()
-                    print(f"✅ Cloud Sync Success: {len(self.chain)} blocks.")
-            
-            # Case 2: Local par zyada data hai (Reverse Sync)
-            # Ye wahi fix hai jo balance 3080 se 3000 hone se rokega
             elif len(self.chain) > len(db_data):
                 missed_blocks = self.chain[len(db_data):]
                 for b in missed_blocks:
                     self.collection.insert_one(b.copy())
-                print(f"⬆️ Reverse Sync: Uploaded {len(missed_blocks)} blocks to Cloud.")
-                
             elif not self.chain and not db_data:
                 self.create_genesis_block()
         except Exception as e:
@@ -156,6 +149,7 @@ class KaalChain:
         return hashlib.sha256(encoded_block).hexdigest()
 
     def is_chain_valid(self, chain):
+        """Hard Integrity Check: Admin chah kar bhi purana data edit nahi kar sakta"""
         if not chain: return False
         last_block = chain[0]
         current_index = 1
@@ -174,14 +168,20 @@ class KaalChain:
             self.create_block(proof=100, previous_hash='0')
 
     def create_block(self, proof, previous_hash):
-        if len(self.chain) > 0:
+        # ✅ Bitcoin Style: Har 2016 blocks ke baad difficulty adjustment
+        if len(self.chain) > 0 and len(self.chain) % self.ADJUSTMENT_WINDOW == 0:
+            start_block = self.chain[-self.ADJUSTMENT_WINDOW]
             last_block = self.chain[-1]
-            time_taken = time.time() - last_block['timestamp']
-            if time_taken < self.TARGET_BLOCK_TIME:
-                self.difficulty = round(self.difficulty + 0.01, 4)
-            else:
-                self.difficulty = round(max(3, self.difficulty - 0.01), 4)
-        
+            actual_time = last_block['timestamp'] - start_block['timestamp']
+            expected_time = self.ADJUSTMENT_WINDOW * self.TARGET_BLOCK_TIME
+            
+            # Adjustment window: Bitcoin ki tarah 1/4x se 4x tak adjust
+            if actual_time < expected_time / 2:
+                self.difficulty += 1
+            elif actual_time > expected_time * 2:
+                self.difficulty = max(3, self.difficulty - 1)
+            print(f"🔱 Difficulty Epoch Reached: New Difficulty {self.difficulty}")
+
         halvings = len(self.chain) // self.HALVING_INTERVAL
         block_reward = self.INITIAL_REWARD / (2 ** halvings)
         
