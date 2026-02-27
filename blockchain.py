@@ -4,6 +4,7 @@ import time
 import os
 import urllib.parse
 import requests
+import sqlite3  # ✅ Naya import local DB ke liye
 from pymongo import MongoClient
 from urllib.parse import urlparse
 
@@ -12,19 +13,18 @@ class KaalChain:
         self.chain = []
         self.pending_transactions = []
         self.difficulty = 3 
-        self.nodes = set() # P2P Peers ki list
+        self.nodes = set()
+        self.utxo_set = {}
         
-        # ✅ UTXO Set: Unspent transactions ko track karne ke liye
-        self.utxo_set = {} # Format: {tx_id: {receiver, amount}}
+        # ✅ Local SQLite Setup
+        self.init_local_db()
         
-        # ✅ Seed Node (Render URL) default add kar rahe hain
         self.nodes.add("kaal-chain.onrender.com")
-        
-        # Bitcoin Logic Constants
-        self.TARGET_BLOCK_TIME = 420  # 7 Minutes
+        self.TARGET_BLOCK_TIME = 420  
         self.HALVING_INTERVAL = 300000  
         self.INITIAL_REWARD = 40      
         
+        # MongoDB Setup
         mongo_uri = os.environ.get("MONGO_URI")
         try:
             if mongo_uri:
@@ -38,40 +38,69 @@ class KaalChain:
             self.mongo_client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
             self.db = self.mongo_client.kaal_db
             self.collection = self.db.ledger
-            self.load_chain_from_db()
-            print("✅ Database Connected Successfully!")
+            
+            # ✅ Pehle Local DB load karo, fir MongoDB se sync karo
+            self.load_chain_from_local_db()
+            self.sync_with_mongodb()
+            
+            print("✅ Database Systems Initialized!")
         except Exception as e:
             print(f"❌ DB Error: {e}")
-            self.create_genesis_block()
+            if not self.chain:
+                self.create_genesis_block()
 
-    def load_chain_from_db(self):
+    def init_local_db(self):
+        """Local SQLite file aur table banana"""
+        self.conn = sqlite3.connect('kaalchain_local.db', check_same_thread=False)
+        self.cursor = self.conn.cursor()
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS blocks (
+                idx INTEGER PRIMARY KEY,
+                data TEXT NOT NULL
+            )
+        ''')
+        self.conn.commit()
+
+    def load_chain_from_local_db(self):
+        """Disk se turant chain load karna"""
+        self.cursor.execute('SELECT data FROM blocks ORDER BY idx ASC')
+        rows = self.cursor.fetchall()
+        if rows:
+            self.chain = [json.loads(row[0]) for row in rows]
+            self.rebuild_utxo_set()
+            print(f"✅ {len(self.chain)} Blocks loaded from Local Disk.")
+        else:
+            print("ℹ️ Local DB is empty.")
+
+    def sync_with_mongodb(self):
+        """Local aur Cloud ko sync karna"""
         try:
             db_data = list(self.collection.find({}, {'_id': 0}).sort("index", 1))
-            if db_data and len(db_data) > 0:
+            if db_data and len(db_data) > len(self.chain):
                 if self.is_chain_valid(db_data):
                     self.chain = db_data
-                    self.rebuild_utxo_set() # ✅ DB se load hote hi UTXO list dobara banana
-                    if 'difficulty' in self.chain[-1]:
-                        self.difficulty = self.chain[-1]['difficulty']
-                    else:
-                        self.difficulty = 3 + (len(self.chain) // 10000) * 0.5
-                else:
-                    print("⚠️ DB ALERT: Chain integrity compromised! Loading safe version...")
-                    self.chain = db_data 
+                    # Local DB update karo
+                    for block in self.chain:
+                        self.save_block_locally(block)
+                    self.rebuild_utxo_set()
+                    print("✅ Synced with MongoDB Cloud.")
             elif not self.chain:
                 self.create_genesis_block()
         except Exception as e:
-            print(f"Sync Error: {e}")
+            print(f"Cloud Sync Error: {e}")
 
-    # ✅ HYBRID UTXO Logic: Purane Rewards aur Transactions ko balance mein joddna
+    def save_block_locally(self, block):
+        """Block ko SQLite mein save karna"""
+        block_json = json.dumps(block)
+        self.cursor.execute('INSERT OR REPLACE INTO blocks (idx, data) VALUES (?, ?)', 
+                           (block['index'], block_json))
+        self.conn.commit()
+
     def rebuild_utxo_set(self):
         self.utxo_set = {}
         for block in self.chain:
-            # 1. Block Reward ko UTXO mein joddna (Miner track karne ke liye)
-            # Agar reward transaction list mein nahi hai, toh use block data se uthayenge
+            # 1. Block Reward logic
             reward_id = f"REWARD_BLOCK_{block['index']}_{block['timestamp']}"
-            
-            # Genesis block aur normal blocks ke liye miner dhoondna
             miner_addr = "GENESIS"
             for tx in block.get('transactions', []):
                 if tx['sender'] == "KAAL_NETWORK":
@@ -84,24 +113,13 @@ class KaalChain:
                     'amount': float(block['reward'])
                 }
 
-            # 2. Normal Transactions ko UTXO mein joddna
+            # 2. Normal Transactions logic
             for tx in block.get('transactions', []):
-                if tx['sender'] == "KAAL_NETWORK": continue # Rewards pehle hi add ho gaye
-                
+                if tx['sender'] == "KAAL_NETWORK": continue
                 tx_id = tx.get('signature', f"TX_{tx['timestamp']}")
-                
-                # Naya UTXO (Receiver ke liye)
-                self.utxo_set[tx_id] = {
-                    'receiver': tx['receiver'],
-                    'amount': float(tx['amount'])
-                }
-                
-                # Spent Logic (Sender ka balance minus karne ke liye hybrid approach)
+                self.utxo_set[tx_id] = {'receiver': tx['receiver'], 'amount': float(tx['amount'])}
                 spent_key = f"SPENT_{tx_id}_{tx['sender']}"
-                self.utxo_set[spent_key] = {
-                    'receiver': tx['sender'],
-                    'amount': -float(tx['amount'])
-                }
+                self.utxo_set[spent_key] = {'receiver': tx['sender'], 'amount': -float(tx['amount'])}
 
     def register_node(self, address):
         if not address: return
@@ -109,7 +127,6 @@ class KaalChain:
         node_address = parsed_url.netloc if parsed_url.netloc else parsed_url.path
         if node_address and node_address != "kaal-chain.onrender.com":
             self.nodes.add(node_address)
-            print(f"📡 Node Registered: {node_address}")
 
     def resolve_conflicts(self):
         neighbours = self.nodes
@@ -130,7 +147,8 @@ class KaalChain:
                 continue
         if new_chain:
             self.chain = new_chain
-            self.rebuild_utxo_set() # ✅ Sync ke baad UTXO update karna
+            for block in self.chain: self.save_block_locally(block)
+            self.rebuild_utxo_set()
             return True
         return False
 
@@ -144,12 +162,9 @@ class KaalChain:
         current_index = 1
         while current_index < len(chain):
             block = chain[current_index]
-            if block['previous_hash'] != last_block['hash']:
-                return False
-            if block['hash'] != self.hash_block(block):
-                return False
-            if not block['hash'].startswith('0' * int(block.get('difficulty', 3))):
-                return False
+            if block['previous_hash'] != last_block['hash']: return False
+            if block['hash'] != self.hash_block(block): return False
+            if not block['hash'].startswith('0' * int(block.get('difficulty', 3))): return False
             last_block = block
             current_index += 1
         return True
@@ -183,19 +198,19 @@ class KaalChain:
         
         block['hash'] = self.hash_block(block)
         self.pending_transactions = []
-        self.chain.append(block)
         
-        # ✅ UTXO Update: Block bante hi UTXO list refresh karna
+        # ✅ Pehle Local save fir Memory fir Cloud
+        self.save_block_locally(block)
+        self.chain.append(block)
         self.rebuild_utxo_set()
         
         try:
-            self.collection.insert_one(block)
+            self.collection.insert_one(block.copy())
         except: 
             pass
         return block
 
     def get_balance(self, address):
-        """✅ UTXO based balance check: Fast aur secure"""
         bal = 0
         for tx_id, output in self.utxo_set.items():
             if output['receiver'] == address:
@@ -203,33 +218,22 @@ class KaalChain:
         return round(bal, 2)
 
     def add_transaction(self, sender, receiver, amount, signature):
-        # 1. Double Spending Check: Kya ye signature (coin ID) pehle use hua hai?
         if signature in [tx['signature'] for tx in self.pending_transactions]:
             return False, "Double transaction!"
-            
         if sender != "KAAL_NETWORK":
-            current_balance = self.get_balance(sender)
-            if current_balance < float(amount):
+            if self.get_balance(sender) < float(amount):
                 return False, "Low Balance!"
         
         self.pending_transactions.append({
-            'sender': sender, 
-            'receiver': receiver, 
-            'amount': float(amount), 
-            'timestamp': time.time(), 
-            'signature': signature
+            'sender': sender, 'receiver': receiver, 'amount': float(amount), 
+            'timestamp': time.time(), 'signature': signature
         })
         return True, "Success"
 
     def mine_block(self, miner_address, proof):
-        self.load_chain_from_db()
-        self.resolve_conflicts()
         pichla_hash = self.chain[-1]['hash'] if self.chain else '0'
         halvings = len(self.chain) // self.HALVING_INTERVAL
         current_reward = self.INITIAL_REWARD / (2 ** halvings)
-        
-        # Reward transaction generate karna
         reward_sig = f"REWARD_{int(time.time())}_{miner_address[:8]}"
         self.add_transaction("KAAL_NETWORK", miner_address, current_reward, reward_sig)
-        
         return self.create_block(proof, pichla_hash)
