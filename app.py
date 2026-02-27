@@ -1,44 +1,47 @@
 from flask import Flask, jsonify, render_template, request
-from blockchain import KaalChain # Blockchain file se dimag uthana
+from flask_socketio import SocketIO, emit # ✅ Naya import real-time sync ke liye
+from blockchain import KaalChain 
 import os
-import requests # Networking ke liye zaruri hai
+import requests
 
-# Server ko shuru karna aur blockchain ko loading par lagana
+# Server ko shuru karna
 app = Flask(__name__)
+
+# ✅ WebSocket Setup: Flask app ko SocketIO se wrap karna
+socketio = SocketIO(app, cors_allowed_origins="*")
+
+# Blockchain instance banana aur socketio link karna
 kaal_chain = KaalChain()
+kaal_chain.socketio = socketio # ✅ Blockchain class ko batana ki halla kahan machana hai
 
 @app.route('/')
 def index():
-    # ✅ Auto-Discovery Update: Render/Proxy ke piche se asli IP nikalna
     client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
     if client_ip and client_ip != "127.0.0.1":
-        # Multi-IP string mein se pehla IP uthana
         actual_ip = client_ip.split(',')[0].strip()
         kaal_chain.register_node(f"http://{actual_ip}:5000")
     return render_template('index.html')
 
-# ✅ Route: Doosre Miners/Nodes ko list mein joddna
 @app.route('/nodes/register', methods=['POST'])
 def register_nodes():
     data = request.get_json()
-    nodes = data.get('nodes') # Example: ["192.168.1.5:5000"]
+    nodes = data.get('nodes')
     if nodes is None:
         return "Error: Please supply a valid list of nodes", 400
     for node in nodes:
         kaal_chain.register_node(node)
     
-    # Sabhi nodes ko ek doosre ki khabar dena (Gossip logic)
     return jsonify({
         'message': 'Naye nodes jodd diye gaye hain', 
         'total_nodes': list(kaal_chain.nodes)
     }), 201
 
-# ✅ Route: Network se sabse lambi chain mangwana (Consensus)
 @app.route('/nodes/resolve', methods=['GET'])
 def consensus():
-    # Sabse lambi aur valid chain ko apnana
     replaced = kaal_chain.resolve_conflicts()
     if replaced:
+        # ✅ Sync ke baad sabko naya status batana
+        socketio.emit('network_update', {'message': 'Chain Updated!'}, broadcast=True)
         return jsonify({
             'message': 'Chain update ho gayi (Lambi chain mili)', 
             'new_chain': kaal_chain.chain
@@ -55,7 +58,6 @@ def get_info():
     if not pata:
         return jsonify({'error': 'Address gayab hai'}), 400
     
-    # ✅ SQLite Sync: Pehle local disk se load karo fir UTXO refresh karo
     kaal_chain.load_chain_from_local_db() 
     kaal_chain.rebuild_utxo_set()
     
@@ -68,7 +70,6 @@ def get_info():
 @app.route('/get_stats')
 def get_stats():
     try:
-        # ✅ Cloud aur Local ka sync trigger karna stats dekhne par
         kaal_chain.sync_with_mongodb()
         kaal_chain.load_chain_from_local_db()
         
@@ -92,7 +93,6 @@ def get_stats():
 @app.route('/add_tx', methods=['POST'])
 def add_tx():
     data = request.get_json()
-    # ✅ Transaction se pehle local data pakka kar lo
     kaal_chain.load_chain_from_local_db() 
     kaal_chain.rebuild_utxo_set()
     
@@ -102,6 +102,11 @@ def add_tx():
         data.get('amount'), 
         data.get('signature')
     )
+    
+    if success:
+        # ✅ Nayi transaction aate hi network ko alert dena
+        socketio.emit('new_tx', {'sender': data.get('sender'), 'amount': data.get('amount')}, broadcast=True)
+        
     return jsonify({'message': msg}), 200 if success else 400
 
 @app.route('/explorer')
@@ -117,16 +122,18 @@ def mine():
     if not pata or not proof:
         return jsonify({'message': 'Data miss hai'}), 400
 
-    # Block mine karo (Ye automatic local DB aur Cloud mein save karega)
+    # Block mine karo
     kaal_chain.mine_block(pata, proof)
     
-    # ✅ P2P Sync: Mine karne ke baad network se check karo
+    # P2P Sync
     kaal_chain.resolve_conflicts() 
     
     # Refresh local memory
     kaal_chain.load_chain_from_local_db() 
     kaal_chain.rebuild_utxo_set()
 
+    # ✅ WebSocket Announcement (Already create_block ke andar broadcast logic laga hua hai)
+    
     return jsonify({
         'message': 'Mined Success & Network Synced', 
         'new_balance': kaal_chain.get_balance(pata)
@@ -134,4 +141,5 @@ def mine():
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    # ✅ Ab app.run ki jagah socketio.run use karna hoga
+    socketio.run(app, host='0.0.0.0', port=port)
