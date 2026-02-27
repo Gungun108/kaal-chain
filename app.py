@@ -55,7 +55,10 @@ def get_info():
     if not pata:
         return jsonify({'error': 'Address gayab hai'}), 400
     
-    kaal_chain.load_chain_from_db() 
+    # ✅ SQLite Sync: Pehle local disk se load karo fir UTXO refresh karo
+    kaal_chain.load_chain_from_local_db() 
+    kaal_chain.rebuild_utxo_set()
+    
     return jsonify({
         'balance': kaal_chain.get_balance(pata),
         'last_proof': kaal_chain.chain[-1]['proof'] if kaal_chain.chain else 100,
@@ -65,7 +68,10 @@ def get_info():
 @app.route('/get_stats')
 def get_stats():
     try:
-        kaal_chain.load_chain_from_db()
+        # ✅ Cloud aur Local ka sync trigger karna stats dekhne par
+        kaal_chain.sync_with_mongodb()
+        kaal_chain.load_chain_from_local_db()
+        
         clean_chain = []
         for block in kaal_chain.chain:
             b = block.copy()
@@ -76,9 +82,9 @@ def get_stats():
             'blocks': len(clean_chain),
             'chain': clean_chain[::-1],
             'total_supply': sum(b.get('reward', 0) for b in clean_chain),
-            'nodes': list(kaal_chain.nodes), # ✅ Wallet par Nodes count dikhane ke liye
+            'nodes': list(kaal_chain.nodes),
             'difficulty': kaal_chain.difficulty,
-            'halving_interval': kaal_chain.HALVING_INTERVAL # Explorer ki halving calculation ke liye
+            'halving_interval': kaal_chain.HALVING_INTERVAL
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -86,7 +92,10 @@ def get_stats():
 @app.route('/add_tx', methods=['POST'])
 def add_tx():
     data = request.get_json()
-    kaal_chain.load_chain_from_db() 
+    # ✅ Transaction se pehle local data pakka kar lo
+    kaal_chain.load_chain_from_local_db() 
+    kaal_chain.rebuild_utxo_set()
+    
     success, msg = kaal_chain.add_transaction(
         data.get('sender'), 
         data.get('receiver'), 
@@ -108,13 +117,15 @@ def mine():
     if not pata or not proof:
         return jsonify({'message': 'Data miss hai'}), 400
 
-    # Block mine karo
+    # Block mine karo (Ye automatic local DB aur Cloud mein save karega)
     kaal_chain.mine_block(pata, proof)
     
-    # ✅ P2P Sync: Mine karne ke baad network se check karo taaki koi fork na bane
+    # ✅ P2P Sync: Mine karne ke baad network se check karo
     kaal_chain.resolve_conflicts() 
     
-    kaal_chain.load_chain_from_db() 
+    # Refresh local memory
+    kaal_chain.load_chain_from_local_db() 
+    kaal_chain.rebuild_utxo_set()
 
     return jsonify({
         'message': 'Mined Success & Network Synced', 
@@ -123,5 +134,4 @@ def mine():
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
-    # '0.0.0.0' taaki global network se connections mil sakein
     app.run(host='0.0.0.0', port=port)
