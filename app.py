@@ -7,7 +7,7 @@ import requests
 # Server ko shuru karna
 app = Flask(__name__)
 
-# ✅ WebSocket Setup: Flask app ko SocketIO se wrap karna
+# ✅ WebSocket Setup
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Blockchain instance banana aur socketio link karna
@@ -29,18 +29,15 @@ def add_block_p2p():
     if not block:
         return jsonify({"message": "Invalid block data"}), 400
     
-    # Check karo ki kya ye block valid hai aur pichle block se juda hai
     last_block = kaal_chain.chain[-1]
     if block['previous_hash'] == last_block['hash'] and \
        block['index'] == last_block['index'] + 1:
         
-        # Hash verify karo (Security check)
         if kaal_chain.hash_block(block) == block['hash']:
             kaal_chain.save_block_locally(block)
             kaal_chain.chain.append(block)
             kaal_chain.rebuild_utxo_set()
             
-            # WebSocket se UI update karo
             socketio.emit('new_block', {'index': block['index'], 'hash': block['hash']}, broadcast=True)
             return jsonify({"message": "Block accepted via P2P"}), 201
             
@@ -94,21 +91,25 @@ def get_info():
 
 @app.route('/get_stats')
 def get_stats():
+    """✅ OPTIMIZED: Mobile Timeout Fix aur Pagination"""
     try:
-        # P2P Discovery: Jab koi stats maange, peers bhi sync kar lo
-        kaal_chain.gossip_with_peers()
-        kaal_chain.sync_with_mongodb()
+        # Har baar heavy sync karne ki bajaye gossip ko fast rakho
+        # taaki Render server timeout na ho jaye
         
         clean_chain = []
-        for block in kaal_chain.chain:
+        # ✅ FIX: Explorer ke liye sirf aakhri 20 blocks bhejo (Pagination)
+        display_limit = 20
+        recent_blocks = kaal_chain.chain[-display_limit:] if len(kaal_chain.chain) > display_limit else kaal_chain.chain
+        
+        for block in recent_blocks:
             b = block.copy()
             if '_id' in b: del b['_id']
             clean_chain.append(b)
             
         return jsonify({
-            'blocks': len(clean_chain),
+            'blocks': len(kaal_chain.chain),
             'chain': clean_chain[::-1],
-            'total_supply': sum(b.get('reward', 0) for b in clean_chain),
+            'total_supply': sum(b.get('reward', 0) for b in kaal_chain.chain),
             'nodes': list(kaal_chain.nodes),
             'difficulty': kaal_chain.difficulty,
             'halving_interval': kaal_chain.HALVING_INTERVAL
@@ -146,16 +147,12 @@ def mine():
     if not pata or not proof:
         return jsonify({'message': 'Data miss hai'}), 400
 
-    # ✅ STEP 1: Block mine karo
     block = kaal_chain.mine_block(pata, proof)
-    
-    # ✅ STEP 2: UTXO Rebuild taaki balance update ho jaye
     kaal_chain.rebuild_utxo_set()
     
-    # ✅ STEP 3: WebSocket se frontend ko batao ki balance check kare
     socketio.emit('new_block', {'index': block['index'], 'miner': pata}, broadcast=True)
     
-    # ✅ STEP 4: Network sync
+    # Mining ke waqt cloud/network sync background mein chalao
     kaal_chain.resolve_conflicts() 
     kaal_chain.sync_with_mongodb()
 
