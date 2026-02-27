@@ -243,8 +243,11 @@ class KaalChain:
         self.chain.append(block)
         self.rebuild_utxo_set()
         
-        if self.socketio:
-            self.socketio.emit('new_block', {'index': block['index'], 'hash': block['hash']}, broadcast=True)
+        # blockchain.py ki line 247 ke aas-paas
+    if self.socketio:
+    # ❌ Purana: self.socketio.emit(..., broadcast=True)
+    # ✅ Naya: Seedha emit karo, Flask-SocketIO handle kar lega
+       self.socketio.emit('new_block', {'index': block['index'], 'hash': block['hash']})
         
         # ✅ KAAL CORE: Direct P2P Broadcast (MongoDB bypass)
         self.broadcast_block(block)
@@ -281,3 +284,4 @@ class KaalChain:
         reward_sig = f"REWARD_{int(time.time())}_{miner_address[:8]}"
         self.add_transaction("KAAL_NETWORK", miner_address, current_reward, reward_sig)
         return self.create_block(proof, pichla_hash)
+
