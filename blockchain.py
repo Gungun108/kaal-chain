@@ -4,7 +4,7 @@ import time
 import os
 import urllib.parse
 import requests
-import sqlite3  # ✅ Naya import local DB ke liye
+import sqlite3
 from pymongo import MongoClient
 from urllib.parse import urlparse
 
@@ -15,6 +15,9 @@ class KaalChain:
         self.difficulty = 3 
         self.nodes = set()
         self.utxo_set = {}
+        
+        # ✅ WebSocket support ke liye placeholder (app.py se link hoga)
+        self.socketio = None 
         
         # ✅ Local SQLite Setup
         self.init_local_db()
@@ -39,7 +42,6 @@ class KaalChain:
             self.db = self.mongo_client.kaal_db
             self.collection = self.db.ledger
             
-            # ✅ Pehle Local DB load karo, fir MongoDB se sync karo
             self.load_chain_from_local_db()
             self.sync_with_mongodb()
             
@@ -50,7 +52,6 @@ class KaalChain:
                 self.create_genesis_block()
 
     def init_local_db(self):
-        """Local SQLite file aur table banana"""
         self.conn = sqlite3.connect('kaalchain_local.db', check_same_thread=False)
         self.cursor = self.conn.cursor()
         self.cursor.execute('''
@@ -62,7 +63,6 @@ class KaalChain:
         self.conn.commit()
 
     def load_chain_from_local_db(self):
-        """Disk se turant chain load karna"""
         self.cursor.execute('SELECT data FROM blocks ORDER BY idx ASC')
         rows = self.cursor.fetchall()
         if rows:
@@ -73,13 +73,11 @@ class KaalChain:
             print("ℹ️ Local DB is empty.")
 
     def sync_with_mongodb(self):
-        """Local aur Cloud ko sync karna"""
         try:
             db_data = list(self.collection.find({}, {'_id': 0}).sort("index", 1))
             if db_data and len(db_data) > len(self.chain):
                 if self.is_chain_valid(db_data):
                     self.chain = db_data
-                    # Local DB update karo
                     for block in self.chain:
                         self.save_block_locally(block)
                     self.rebuild_utxo_set()
@@ -90,7 +88,6 @@ class KaalChain:
             print(f"Cloud Sync Error: {e}")
 
     def save_block_locally(self, block):
-        """Block ko SQLite mein save karna"""
         block_json = json.dumps(block)
         self.cursor.execute('INSERT OR REPLACE INTO blocks (idx, data) VALUES (?, ?)', 
                            (block['index'], block_json))
@@ -99,7 +96,6 @@ class KaalChain:
     def rebuild_utxo_set(self):
         self.utxo_set = {}
         for block in self.chain:
-            # 1. Block Reward logic
             reward_id = f"REWARD_BLOCK_{block['index']}_{block['timestamp']}"
             miner_addr = "GENESIS"
             for tx in block.get('transactions', []):
@@ -108,12 +104,8 @@ class KaalChain:
                     break
             
             if block.get('reward', 0) > 0:
-                self.utxo_set[reward_id] = {
-                    'receiver': miner_addr,
-                    'amount': float(block['reward'])
-                }
+                self.utxo_set[reward_id] = {'receiver': miner_addr, 'amount': float(block['reward'])}
 
-            # 2. Normal Transactions logic
             for tx in block.get('transactions', []):
                 if tx['sender'] == "KAAL_NETWORK": continue
                 tx_id = tx.get('signature', f"TX_{tx['timestamp']}")
@@ -199,10 +191,13 @@ class KaalChain:
         block['hash'] = self.hash_block(block)
         self.pending_transactions = []
         
-        # ✅ Pehle Local save fir Memory fir Cloud
         self.save_block_locally(block)
         self.chain.append(block)
         self.rebuild_utxo_set()
+        
+        # ✅ WebSocket Announcement (Live update)
+        if self.socketio:
+            self.socketio.emit('new_block', {'index': block['index'], 'hash': block['hash']}, broadcast=True)
         
         try:
             self.collection.insert_one(block.copy())
