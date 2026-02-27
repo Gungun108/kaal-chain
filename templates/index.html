@@ -237,6 +237,7 @@
             <button class="btn" style="background:#444;" onclick="startScan()">📸 Open Camera</button>
             <input type="text" id="to" placeholder="Receiver Address (KAAL...)" style="width:85%; padding:12px; margin-top:10px; border-radius:10px; border:1px solid #ccc;">
             <input type="number" id="amt" placeholder="Amount" style="width:85%; padding:12px; margin-top:10px; border-radius:10px; border:1px solid #ccc;">
+            <p style="font-size:10px; color:gray; margin-top:5px;">Network Fee: <b>0.05 KAAL</b></p>
             <button class="btn" id="sendBtn" onclick="sendTx()">Confirm & Send</button>
             <button class="btn" style="background:gray;" onclick="closeModal('sendModal')">Close</button>
         </div>
@@ -451,10 +452,18 @@
             btn.innerText = "Authorizing...";
 
             try {
+                // ✅ Updated: Added Fee Splitting Parameters
                 const res = await fetch('/add_tx', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sender: pub, receiver: to, amount: amt, signature: pk })
+                    body: JSON.stringify({ 
+                        sender: pub, 
+                        receiver: to, 
+                        amount: amt, 
+                        signature: pk,
+                        tx_type: "standard", // Standard economy split
+                        fee: 0.05            // Minimum set fee
+                    })
                 });
 
                 if (res.ok) {
@@ -466,7 +475,8 @@
                     alert("❌ Error: " + (data.message || "Unknown error"));
                 }
             } catch (e) {
-                console.log("Network lag detected, but checking balance...");
+                // ✅ UI Reliability: Syncing even on network lag
+                console.log("Lag detected, auto-syncing...");
                 showNotification("⏳ Processing Transaction...");
                 setTimeout(sync, 2000);
                 closeModal('sendModal');
