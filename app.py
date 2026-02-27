@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, render_template, request
-from flask_socketio import SocketIO, emit # ✅ Naya import real-time sync ke liye
+from flask_socketio import SocketIO, emit # ✅ Real-time sync
 from blockchain import KaalChain 
 import os
 import requests
@@ -7,12 +7,12 @@ import requests
 # Server ko shuru karna
 app = Flask(__name__)
 
-# ✅ WebSocket Setup: Flask app ko SocketIO se wrap karna
+# ✅ WebSocket Setup
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Blockchain instance banana aur socketio link karna
 kaal_chain = KaalChain()
-kaal_chain.socketio = socketio # ✅ Blockchain class ko batana ki halla kahan machana hai
+kaal_chain.socketio = socketio 
 
 @app.route('/')
 def index():
@@ -21,6 +21,30 @@ def index():
         actual_ip = client_ip.split(',')[0].strip()
         kaal_chain.register_node(f"http://{actual_ip}:5000")
     return render_template('index.html')
+
+# ✅ KAAL CORE: P2P Block Receiver Endpoint
+@app.route('/add_block_p2p', methods=['POST'])
+def add_block_p2p():
+    block = request.get_json()
+    if not block:
+        return jsonify({"message": "Invalid block data"}), 400
+    
+    # Check karo ki kya ye block valid hai aur pichle block se juda hai
+    last_block = kaal_chain.chain[-1]
+    if block['previous_hash'] == last_block['hash'] and \
+       block['index'] == last_block['index'] + 1:
+        
+        # Hash verify karo (Security check)
+        if kaal_chain.hash_block(block) == block['hash']:
+            kaal_chain.save_block_locally(block)
+            kaal_chain.chain.append(block)
+            kaal_chain.rebuild_utxo_set()
+            
+            # WebSocket se UI update karo
+            socketio.emit('new_block', {'index': block['index'], 'hash': block['hash']}, broadcast=True)
+            return jsonify({"message": "Block accepted via P2P"}), 201
+            
+    return jsonify({"message": "Block rejected"}), 400
 
 @app.route('/nodes/register', methods=['POST'])
 def register_nodes():
@@ -40,7 +64,6 @@ def register_nodes():
 def consensus():
     replaced = kaal_chain.resolve_conflicts()
     if replaced:
-        # ✅ Sync ke baad sabko naya status batana
         socketio.emit('network_update', {'message': 'Chain Updated!'}, broadcast=True)
         return jsonify({
             'message': 'Chain update ho gayi (Lambi chain mili)', 
@@ -58,11 +81,10 @@ def get_info():
     if not pata:
         return jsonify({'error': 'Address gayab hai'}), 400
     
-    # ✅ FIX: Har baar DB load karne ki bajaye current memory state use karega agar chain loaded hai
     if not kaal_chain.chain:
         kaal_chain.load_chain_from_local_db() 
     
-    kaal_chain.rebuild_utxo_set() # Balance hamesha live UTXO se aayega
+    kaal_chain.rebuild_utxo_set() 
     
     return jsonify({
         'balance': kaal_chain.get_balance(pata),
@@ -73,7 +95,8 @@ def get_info():
 @app.route('/get_stats')
 def get_stats():
     try:
-        # ✅ Pehle Smart Sync (Reverse Sync logic blockchain.py mein hai)
+        # P2P Discovery: Jab koi stats maange, peers bhi sync kar lo
+        kaal_chain.gossip_with_peers()
         kaal_chain.sync_with_mongodb()
         
         clean_chain = []
@@ -96,7 +119,6 @@ def get_stats():
 @app.route('/add_tx', methods=['POST'])
 def add_tx():
     data = request.get_json()
-    # Transaction ke liye live balance verification
     kaal_chain.rebuild_utxo_set()
     
     success, msg = kaal_chain.add_transaction(
@@ -124,13 +146,8 @@ def mine():
     if not pata or not proof:
         return jsonify({'message': 'Data miss hai'}), 400
 
-    # Block mine karo
     kaal_chain.mine_block(pata, proof)
-    
-    # ✅ P2P Sync & Resolve
     kaal_chain.resolve_conflicts() 
-    
-    # ✅ Cloud ko turant update karo taaki balance lock ho jaye
     kaal_chain.sync_with_mongodb()
 
     return jsonify({
