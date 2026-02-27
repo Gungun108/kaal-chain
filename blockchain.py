@@ -12,7 +12,7 @@ class KaalChain:
     def __init__(self):
         self.chain = []
         self.pending_transactions = []
-        self.difficulty = 3 
+        self.difficulty = 1 
         self.nodes = set()
         self.utxo_set = {}
         self.socketio = None 
@@ -293,3 +293,4 @@ class KaalChain:
         reward_sig = f"REWARD_{int(time.time())}_{miner_address[:8]}"
         self.add_transaction("KAAL_NETWORK", miner_address, current_reward, reward_sig)
         return self.create_block(proof, pichla_hash)
+
