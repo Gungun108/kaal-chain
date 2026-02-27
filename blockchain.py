@@ -48,8 +48,12 @@ class KaalChain:
             self.load_chain_from_local_db()
             self.sync_with_mongodb()
             
-            # ✅ KAAL CORE: Startup par Gossip chalao peers dhoondne ke liye
-            self.gossip_with_peers()
+            # ✅ KAAL CORE: Startup par Gossip chalao (With Safety Check)
+            try:
+                print("⏳ Starting Peer Discovery...")
+                self.gossip_with_peers()
+            except Exception as gossip_err:
+                print(f"⚠️ Gossip delayed: {gossip_err}")
             
             print("✅ KAAL CHAIN: Bitcoin Style Epoch & P2P Core Active!")
         except Exception as e:
@@ -187,7 +191,7 @@ class KaalChain:
         return hashlib.sha256(encoded_block).hexdigest()
 
     def is_chain_valid(self, chain):
-        """Hard Integrity Check: Admin chah kar bhi purana data edit nahi kar sakta"""
+        """Hard Integrity Check: Admin tamper-proof"""
         if not chain: return False
         last_block = chain[0]
         current_index = 1
@@ -206,7 +210,7 @@ class KaalChain:
             self.create_block(proof=100, previous_hash='0')
 
     def create_block(self, proof, previous_hash):
-        # ✅ Bitcoin Style: Har 2016 blocks ke baad difficulty adjustment
+        # ✅ Bitcoin Style Adjustment: Har 2016 blocks par
         if len(self.chain) > 0 and len(self.chain) % self.ADJUSTMENT_WINDOW == 0:
             start_block = self.chain[-self.ADJUSTMENT_WINDOW]
             last_block = self.chain[-1]
