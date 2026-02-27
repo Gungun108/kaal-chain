@@ -1,7 +1,5 @@
 flask
-pymongo
-requests
-ecdsa
 flask-socketio
 eventlet
-hashlib
+pymongo
+requests
