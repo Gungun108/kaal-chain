@@ -38,7 +38,8 @@ def add_block_p2p():
             kaal_chain.chain.append(block)
             kaal_chain.rebuild_utxo_set()
             
-            socketio.emit('new_block', {'index': block['index'], 'hash': block['hash']}, broadcast=True)
+            # Note: broadcast=True removed to fix TypeError in logs
+            socketio.emit('new_block', {'index': block['index'], 'hash': block['hash']})
             return jsonify({"message": "Block accepted via P2P"}), 201
             
     return jsonify({"message": "Block rejected"}), 400
@@ -61,7 +62,7 @@ def register_nodes():
 def consensus():
     replaced = kaal_chain.resolve_conflicts()
     if replaced:
-        socketio.emit('network_update', {'message': 'Chain Updated!'}, broadcast=True)
+        socketio.emit('network_update', {'message': 'Chain Updated!'})
         return jsonify({
             'message': 'Chain update ho gayi (Lambi chain mili)', 
             'new_chain': kaal_chain.chain
@@ -93,11 +94,7 @@ def get_info():
 def get_stats():
     """✅ OPTIMIZED: Mobile Timeout Fix aur Pagination"""
     try:
-        # Har baar heavy sync karne ki bajaye gossip ko fast rakho
-        # taaki Render server timeout na ho jaye
-        
         clean_chain = []
-        # ✅ FIX: Explorer ke liye sirf aakhri 20 blocks bhejo (Pagination)
         display_limit = 20
         recent_blocks = kaal_chain.chain[-display_limit:] if len(kaal_chain.chain) > display_limit else kaal_chain.chain
         
@@ -112,25 +109,30 @@ def get_stats():
             'total_supply': sum(b.get('reward', 0) for b in kaal_chain.chain),
             'nodes': list(kaal_chain.nodes),
             'difficulty': kaal_chain.difficulty,
-            'halving_interval': kaal_chain.HALVING_INTERVAL
+            'halving_interval': kaal_chain.HALVING_INTERVAL,
+            'dao_wallet': kaal_chain.DAO_WALLET # ✅ Live transparency for DAO
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route('/add_tx', methods=['POST'])
 def add_tx():
+    """✅ Updated: Now supports Economy Logic with Fees"""
     data = request.get_json()
     kaal_chain.rebuild_utxo_set()
     
+    # Naye parameters backend ko bhejna: tx_type aur fee
     success, msg = kaal_chain.add_transaction(
         data.get('sender'), 
         data.get('receiver'), 
         data.get('amount'), 
-        data.get('signature')
+        data.get('signature'),
+        data.get('tx_type', 'standard'), # Default standard transaction
+        data.get('fee', 0.05)            # Default economy fee
     )
     
     if success:
-        socketio.emit('new_tx', {'sender': data.get('sender'), 'amount': data.get('amount')}, broadcast=True)
+        socketio.emit('new_tx', {'sender': data.get('sender'), 'amount': data.get('amount')})
         
     return jsonify({'message': msg}), 200 if success else 400
 
@@ -150,9 +152,8 @@ def mine():
     block = kaal_chain.mine_block(pata, proof)
     kaal_chain.rebuild_utxo_set()
     
-    socketio.emit('new_block', {'index': block['index'], 'miner': pata}, broadcast=True)
+    socketio.emit('new_block', {'index': block['index'], 'miner': pata})
     
-    # Mining ke waqt cloud/network sync background mein chalao
     kaal_chain.resolve_conflicts() 
     kaal_chain.sync_with_mongodb()
 
