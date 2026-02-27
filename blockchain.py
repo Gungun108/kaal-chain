@@ -42,14 +42,18 @@ class KaalChain:
             self.db = self.mongo_client.kaal_db
             self.collection = self.db.ledger
             
-            self.load_chain_from_local_db()
+            # ✅ Pehle Cloud se sync karo taaki data udd na jaye
             self.sync_with_mongodb()
+            # ✅ Phir local load karo
+            self.load_chain_from_local_db()
             
-            print("✅ Database Systems Initialized!")
+            print("✅ Database Systems Initialized & Synced!")
         except Exception as e:
             print(f"❌ DB Error: {e}")
             if not self.chain:
-                self.create_genesis_block()
+                self.load_chain_from_local_db()
+                if not self.chain:
+                    self.create_genesis_block()
 
     def init_local_db(self):
         self.conn = sqlite3.connect('kaalchain_local.db', check_same_thread=False)
@@ -63,27 +67,28 @@ class KaalChain:
         self.conn.commit()
 
     def load_chain_from_local_db(self):
+        """Disk se turant chain load karna"""
         self.cursor.execute('SELECT data FROM blocks ORDER BY idx ASC')
         rows = self.cursor.fetchall()
         if rows:
             self.chain = [json.loads(row[0]) for row in rows]
+            # Difficulty ko last block se uthao
+            if 'difficulty' in self.chain[-1]:
+                self.difficulty = self.chain[-1]['difficulty']
             self.rebuild_utxo_set()
             print(f"✅ {len(self.chain)} Blocks loaded from Local Disk.")
         else:
             print("ℹ️ Local DB is empty.")
 
     def sync_with_mongodb(self):
+        """Cloud se data khinch kar Local DB ko bhar dena"""
         try:
             db_data = list(self.collection.find({}, {'_id': 0}).sort("index", 1))
-            if db_data and len(db_data) > len(self.chain):
-                if self.is_chain_valid(db_data):
-                    self.chain = db_data
-                    for block in self.chain:
-                        self.save_block_locally(block)
-                    self.rebuild_utxo_set()
-                    print("✅ Synced with MongoDB Cloud.")
-            elif not self.chain:
-                self.create_genesis_block()
+            if db_data:
+                # Agar cloud par data hai, toh use local mein save karo (Replacement logic)
+                for block in db_data:
+                    self.save_block_locally(block)
+                print(f"✅ Synced {len(db_data)} blocks from Cloud to Local.")
         except Exception as e:
             print(f"Cloud Sync Error: {e}")
 
@@ -167,13 +172,14 @@ class KaalChain:
             self.create_block(proof=100, previous_hash='0')
 
     def create_block(self, proof, previous_hash):
+        # ✅ Smooth Difficulty adjustment: 0.05 se ghatakar 0.01 kar diya
         if len(self.chain) > 0:
             last_block = self.chain[-1]
             time_taken = time.time() - last_block['timestamp']
             if time_taken < self.TARGET_BLOCK_TIME:
-                self.difficulty += 0.05
+                self.difficulty = round(self.difficulty + 0.01, 4)
             else:
-                self.difficulty = max(3, self.difficulty - 0.05)
+                self.difficulty = round(max(3, self.difficulty - 0.01), 4)
         
         halvings = len(self.chain) // self.HALVING_INTERVAL
         block_reward = self.INITIAL_REWARD / (2 ** halvings)
@@ -191,15 +197,17 @@ class KaalChain:
         block['hash'] = self.hash_block(block)
         self.pending_transactions = []
         
+        # ✅ Save locally first
         self.save_block_locally(block)
         self.chain.append(block)
         self.rebuild_utxo_set()
         
-        # ✅ WebSocket Announcement (Live update)
+        # WebSocket Announcement
         if self.socketio:
             self.socketio.emit('new_block', {'index': block['index'], 'hash': block['hash']}, broadcast=True)
         
         try:
+            # ✅ Cloud save for persistence
             self.collection.insert_one(block.copy())
         except: 
             pass
