@@ -150,7 +150,6 @@
             font-weight: bold;
         }
 
-        /* ✅ New Style for Real-time Toast */
         .toast-notify {
             position: fixed;
             bottom: 20px;
@@ -262,7 +261,7 @@
         const wordList = ["shiva", "brahma", "vishnu", "nandi", "kaal", "agni", "vayu", "shakti", "rudra", "dharma", "karma", "moksha", "bhakti", "yoga", "shanti", "om", "surya", "chandra", "ganesha", "hanuman"]; 
         let mining = false, pub, html5QrCode;
 
-        // ✅ Real-time WebSocket Logic
+        // ✅ WebSocket Real-time Sync
         const socket = io();
 
         socket.on('new_block', function(data) {
@@ -296,9 +295,7 @@
 
         function generateNewWallet() {
             let mnemonic = [];
-            for(let i=0; i<12; i++) {
-                mnemonic.push(wordList[Math.floor(Math.random() * wordList.length)]);
-            }
+            for(let i=0; i<12; i++) { mnemonic.push(wordList[Math.floor(Math.random() * wordList.length)]); }
             window.temp_mnemonic = mnemonic.join(" ");
             const wordsHtml = mnemonic.map(w => `<div class="word">${w}</div>`).join("");
             document.getElementById('seedWords').innerHTML = wordsHtml;
@@ -320,14 +317,9 @@
             let privateKey;
             if (isImport) {
                 const input = document.getElementById('importInput').value.trim().toLowerCase();
-                if (input.length === 64 && /^[0-9a-fA-F]+$/.test(input)) {
-                    privateKey = input;
-                } else {
-                    privateKey = ec.hash().update(input).digest('hex');
-                }
-            } else {
-                privateKey = ec.hash().update(window.temp_mnemonic).digest('hex');
-            }
+                if (input.length === 64 && /^[0-9a-fA-F]+$/.test(input)) { privateKey = input; }
+                else { privateKey = ec.hash().update(input).digest('hex'); }
+            } else { privateKey = ec.hash().update(window.temp_mnemonic).digest('hex'); }
 
             const key = ec.keyFromPrivate(privateKey);
             const publicK = "KAAL" + ec.hash().update(key.getPublic('hex', true)).digest('hex').substring(0, 40).toUpperCase();
@@ -339,7 +331,6 @@
             localStorage.setItem('kaal_vault', btoa(encrypted));
             localStorage.setItem('kaal_pub', publicK);
             if(!isImport) localStorage.setItem('kaal_seed', btoa(window.temp_mnemonic));
-            
             location.reload();
         }
 
@@ -352,8 +343,7 @@
                 const decrypted = atob(vault);
                 let key = "";
                 for (let i = 0; i < decrypted.length; i++) key += String.fromCharCode(decrypted.charCodeAt(i) ^ pass.charCodeAt(i % pass.length));
-                const hexRegex = /^[0-9a-fA-F]{64}$/;
-                if (!hexRegex.test(key)) { alert("❌ Wrong Password!"); return null; }
+                if (!/^[0-9a-fA-F]{64}$/.test(key)) { alert("❌ Wrong Password!"); return null; }
                 return key;
             } catch (e) { return null; }
         }
@@ -373,10 +363,8 @@
                 document.getElementById('addrDisp').innerText = pub;
                 document.getElementById('recAddr').innerText = pub;
                 new QRCode(document.getElementById("qrcode"), { text: pub, width: 140, height: 140 });
-                sync(); setInterval(sync, 20000); // Increased interval because we have WebSockets now
-            } else {
-                document.getElementById('setupModal').style.display = 'block';
-            }
+                sync(); setInterval(sync, 15000);
+            } else { document.getElementById('setupModal').style.display = 'block'; }
         }
 
         async function sync() {
@@ -399,8 +387,16 @@
                 }
 
                 document.getElementById('peerCount').innerText = `🌐 P2P: ${stats.nodes ? stats.nodes.length : 0} Nodes`;
+                
+                // ✅ UI Stability: Pehle balance update karo
                 if (info && info.balance !== undefined) {
-                    document.getElementById('bal').innerText = parseFloat(info.balance).toFixed(2);
+                    const currentBal = parseFloat(document.getElementById('bal').innerText);
+                    const newBal = parseFloat(info.balance);
+                    
+                    // Jhatka rokne ke liye: Agar naya balance zyada hai toh hi update karein (Sync delay fix)
+                    if (newBal >= currentBal) {
+                        document.getElementById('bal').innerText = newBal.toFixed(2);
+                    }
                     window.last_proof = info.last_proof || 100;
                     window.diff = info.difficulty || 3;
                 }
@@ -469,12 +465,11 @@
             btn.disabled = true; btn.innerText = "Authorizing...";
             try {
                 const res = await fetch('/add_tx', { 
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' }, 
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, 
                     body: JSON.stringify({ sender: pub, receiver: to, amount: amt, signature: pk }) 
                 });
                 const data = await res.json();
-                if (res.ok) { closeModal('sendModal'); }
+                if (res.ok) { closeModal('sendModal'); sync(); }
                 else { alert("Error: " + data.message); }
             } catch (e) { alert("Network Error!"); }
             btn.disabled = false; btn.innerText = "Confirm & Send";
